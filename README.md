@@ -2,7 +2,7 @@
 
 # Wypozyczarka Backend
 
-Backend for Wypozyczarka application.
+Backend for Wypozyczarka application, written using Node.js
 
 ## Description
 
