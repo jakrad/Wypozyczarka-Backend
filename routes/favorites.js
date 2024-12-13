@@ -4,7 +4,48 @@ const router = express.Router();
 const { Favorite, User, Tool } = require('../models');
 const auth = require('../middleware/auth');
 
-// Dodawanie ulubionego narzędzia
+/**
+ * @swagger
+ * tags:
+ *   name: Favorites
+ *   description: API for managing user favorite tools
+ */
+
+/**
+ * @swagger
+ * /favorites:
+ *   post:
+ *     summary: Add a tool to favorites
+ *     tags: [Favorites]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       description: Tool ID to add to favorites
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AddFavoriteRequest'
+ *     responses:
+ *       201:
+ *         description: Favorite added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AddFavoriteResponse'
+ *       400:
+ *         description: Bad Request - Tool does not exist or favorite already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.post('/', auth, async (req, res) => {
   const { toolId } = req.body;
   const userId = req.user.userId;
@@ -30,14 +71,37 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// Pobieranie wszystkich ulubionych narzędzi użytkownika
+/**
+ * @swagger
+ * /favorites:
+ *   get:
+ *     summary: Get all favorite tools of the authenticated user
+ *     tags: [Favorites]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of favorite tools
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Favorite'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.get('/', auth, async (req, res) => {
   const userId = req.user.userId;
 
   try {
     const favorites = await Favorite.findAll({
       where: { userId },
-      include: [Tool]
+      include: [Tool],
     });
     res.json(favorites);
   } catch (error) {
@@ -46,7 +110,51 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// Usuwanie ulubionego narzędzia
+/**
+ * @swagger
+ * /favorites/{id}:
+ *   delete:
+ *     summary: Remove a tool from favorites
+ *     tags: [Favorites]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the favorite to remove
+ *     responses:
+ *       200:
+ *         description: Favorite removed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Ulubione usunięte pomyślnie
+ *       403:
+ *         description: Forbidden - User does not have permission to delete this favorite
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Favorite not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.delete('/:id', auth, async (req, res) => {
   const favoriteId = req.params.id;
   const userId = req.user.userId;

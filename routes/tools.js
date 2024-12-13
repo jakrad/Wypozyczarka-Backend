@@ -5,7 +5,46 @@ const { Tool, User, ToolImage } = require('../models');
 const auth = require('../middleware/auth');
 
 /**
- * Dodawanie nowego narzędzia (chronione)
+ * @swagger
+ * tags:
+ *   name: Tools
+ *   description: API for managing tools and their images
+ */
+
+/**
+ * @swagger
+ * /tools:
+ *   post:
+ *     summary: Add a new tool
+ *     tags: [Tools]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       description: Tool data to add
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AddToolRequest'
+ *     responses:
+ *       201:
+ *         description: Tool added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AddToolResponse'
+ *       400:
+ *         description: Bad Request - User does not exist
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/', auth, async (req, res) => {
   const { name, description, category, pricePerDay, location } = req.body;
@@ -39,7 +78,26 @@ router.post('/', auth, async (req, res) => {
 });
 
 /**
- * Pobieranie wszystkich narzędzi (publiczne)
+ * @swagger
+ * /tools:
+ *   get:
+ *     summary: Get all tools
+ *     tags: [Tools]
+ *     responses:
+ *       200:
+ *         description: List of tools
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Tool'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/', async (req, res) => {
   try {
@@ -57,7 +115,37 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * Pobieranie pojedynczego narzędzia (publiczne)
+ * @swagger
+ * /tools/{id}:
+ *   get:
+ *     summary: Get a single tool by ID
+ *     tags: [Tools]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the tool to retrieve
+ *     responses:
+ *       200:
+ *         description: Tool details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tool'
+ *       404:
+ *         description: Tool not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:id', async (req, res) => {
   const toolId = req.params.id;
@@ -82,7 +170,58 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
- * Aktualizacja narzędzia (chronione)
+ * @swagger
+ * /tools/{id}:
+ *   put:
+ *     summary: Update a tool
+ *     tags: [Tools]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the tool to update
+ *     requestBody:
+ *       description: Updated tool data
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateToolRequest'
+ *     responses:
+ *       200:
+ *         description: Tool updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Narzędzie zaktualizowane pomyślnie
+ *                 tool:
+ *                   $ref: '#/components/schemas/Tool'
+ *       403:
+ *         description: Forbidden - No permission to update this tool
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Tool not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.put('/:id', auth, async (req, res) => {
   const toolId = req.params.id;
@@ -117,7 +256,49 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 /**
- * Usuwanie narzędzia (chronione)
+ * @swagger
+ * /tools/{id}:
+ *   delete:
+ *     summary: Delete a tool
+ *     tags: [Tools]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the tool to delete
+ *     responses:
+ *       200:
+ *         description: Tool deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Narzędzie usunięte pomyślnie
+ *       403:
+ *         description: Forbidden - No permission to delete this tool
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Tool not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete('/:id', auth, async (req, res) => {
   const toolId = req.params.id;
@@ -145,8 +326,52 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 /**
- * Dodawanie obrazu do narzędzia (chronione)
- * POST /api/tools/:toolId/images
+ * @swagger
+ * /tools/{toolId}/images:
+ *   post:
+ *     summary: Add an image to a tool
+ *     tags: [Tools]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: toolId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the tool to add an image to
+ *     requestBody:
+ *       description: Image URL to add
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AddToolImageRequest'
+ *     responses:
+ *       201:
+ *         description: Image added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AddToolImageResponse'
+ *       403:
+ *         description: Forbidden - No permission to add image to this tool
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Tool not found or image not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/:toolId/images', auth, async (req, res) => {
   const toolId = req.params.toolId;
@@ -178,8 +403,39 @@ router.post('/:toolId/images', auth, async (req, res) => {
 });
 
 /**
- * Pobieranie obrazów narzędzia (publiczne)
- * GET /api/tools/:toolId/images
+ * @swagger
+ * /tools/{toolId}/images:
+ *   get:
+ *     summary: Get images of a tool
+ *     tags: [Tools]
+ *     parameters:
+ *       - in: path
+ *         name: toolId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the tool to retrieve images for
+ *     responses:
+ *       200:
+ *         description: List of tool images
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/ToolImage'
+ *       404:
+ *         description: Tool not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:toolId/images', async (req, res) => {
   const toolId = req.params.toolId;
@@ -194,8 +450,55 @@ router.get('/:toolId/images', async (req, res) => {
 });
 
 /**
- * Usuwanie obrazu z narzędzia (chronione)
- * DELETE /api/tools/:toolId/images/:imageId
+ * @swagger
+ * /tools/{toolId}/images/{imageId}:
+ *   delete:
+ *     summary: Delete an image from a tool
+ *     tags: [Tools]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: toolId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the tool
+ *       - in: path
+ *         name: imageId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the image to delete
+ *     responses:
+ *       200:
+ *         description: Image deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Obraz usunięty pomyślnie
+ *       403:
+ *         description: Forbidden - No permission to delete image from this tool
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Tool or Image not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete('/:toolId/images/:imageId', auth, async (req, res) => {
   const toolId = req.params.toolId;

@@ -8,7 +8,44 @@ const auth = require('../middleware/auth');
 require('dotenv').config();
 
 /**
- * Rejestracja użytkownika
+ * @swagger
+ * tags:
+ *   name: Users
+ *   description: API for user registration, authentication, and profile management
+ */
+
+/**
+ * @swagger
+ * /users/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Users]
+ *     requestBody:
+ *       description: User registration data
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RegisterRequest'
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RegisterResponse'
+ *       400:
+ *         description: Bad Request - Email already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/register', async (req, res) => {
   const { email, password, name, phoneNumber, profileImage, role } = req.body;
@@ -38,7 +75,37 @@ router.post('/register', async (req, res) => {
 });
 
 /**
- * Logowanie użytkownika
+ * @swagger
+ * /users/login:
+ *   post:
+ *     summary: Login a user
+ *     tags: [Users]
+ *     requestBody:
+ *       description: User login credentials
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *     responses:
+ *       200:
+ *         description: User logged in successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       400:
+ *         description: Bad Request - Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -68,7 +135,32 @@ router.post('/login', async (req, res) => {
 });
 
 /**
- * Pobieranie informacji o zalogowanym użytkowniku (chronione)
+ * @swagger
+ * /users/me:
+ *   get:
+ *     summary: Get information about the logged-in user
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/me', auth, async (req, res) => {
   const userId = req.user.userId;
@@ -90,7 +182,59 @@ router.get('/me', auth, async (req, res) => {
 });
 
 /**
- * Aktualizacja danych użytkownika (chronione)
+ * @swagger
+ * /users/me:
+ *   put:
+ *     summary: Update logged-in user's data
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       description: User data to update
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Updated name
+ *                 example: Jan Kowalski
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Updated phone number
+ *                 example: +987654321
+ *               profileImage:
+ *                 type: string
+ *                 format: url
+ *                 description: Updated profile image URL
+ *                 example: http://example.com/images/new-profile.jpg
+ *     responses:
+ *       200:
+ *         description: User data updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Dane użytkownika zaktualizowane pomyślnie
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.put('/me', auth, async (req, res) => {
   const userId = req.user.userId;
@@ -116,7 +260,36 @@ router.put('/me', auth, async (req, res) => {
 });
 
 /**
- * Usuwanie konta użytkownika (chronione)
+ * @swagger
+ * /users/me:
+ *   delete:
+ *     summary: Delete the logged-in user's account
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User account deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Konto użytkownika usunięte pomyślnie
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete('/me', auth, async (req, res) => {
   const userId = req.user.userId;
@@ -137,7 +310,39 @@ router.delete('/me', auth, async (req, res) => {
 });
 
 /**
- * Pobieranie użytkownika po ID (chronione)
+ * @swagger
+ * /users/{id}:
+ *   get:
+ *     summary: Get a user by ID
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the user to retrieve
+ *     responses:
+ *       200:
+ *         description: User details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:id', auth, async (req, res) => {
   const userId = req.params.id;

@@ -4,7 +4,48 @@ const router = express.Router();
 const { Review, User } = require('../models');
 const auth = require('../middleware/auth');
 
-// Dodawanie nowej recenzji
+/**
+ * @swagger
+ * tags:
+ *   name: Reviews
+ *   description: API for managing user reviews
+ */
+
+/**
+ * @swagger
+ * /reviews:
+ *   post:
+ *     summary: Add a new review
+ *     tags: [Reviews]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       description: Review data to add
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AddReviewRequest'
+ *     responses:
+ *       201:
+ *         description: Review added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AddReviewResponse'
+ *       400:
+ *         description: Bad Request - Invalid user or review already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.post('/', auth, async (req, res) => {
   const { reviewedUserId, rating, comment } = req.body;
   const reviewerUserId = req.user.userId;
@@ -37,7 +78,34 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// Pobieranie recenzji
+/**
+ * @swagger
+ * /reviews:
+ *   get:
+ *     summary: Get reviews
+ *     tags: [Reviews]
+ *     parameters:
+ *       - in: query
+ *         name: reviewedUserId
+ *         schema:
+ *           type: integer
+ *         description: ID of the user being reviewed
+ *     responses:
+ *       200:
+ *         description: List of reviews
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Review'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.get('/', async (req, res) => {
   const { reviewedUserId } = req.query;
 
@@ -63,7 +131,60 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Aktualizacja recenzji (PUT /api/reviews/:id)
+/**
+ * @swagger
+ * /reviews/{id}:
+ *   put:
+ *     summary: Update a review
+ *     tags: [Reviews]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the review to update
+ *     requestBody:
+ *       description: Updated review data
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateReviewRequest'
+ *     responses:
+ *       200:
+ *         description: Review updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Recenzja zaktualizowana pomyślnie
+ *                 review:
+ *                   $ref: '#/components/schemas/Review'
+ *       403:
+ *         description: Forbidden - No permission to update this review
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Review not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.put('/:id', auth, async (req, res) => {
   const reviewId = req.params.id;
   const { rating, comment } = req.body;
@@ -93,7 +214,51 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
-// Usuwanie recenzji (DELETE /api/reviews/:id)
+/**
+ * @swagger
+ * /reviews/{id}:
+ *   delete:
+ *     summary: Delete a review
+ *     tags: [Reviews]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the review to delete
+ *     responses:
+ *       200:
+ *         description: Review deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Recenzja usunięta pomyślnie
+ *       403:
+ *         description: Forbidden - No permission to delete this review
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Review not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.delete('/:id', auth, async (req, res) => {
   const reviewId = req.params.id;
   const reviewerUserId = req.user.userId;
