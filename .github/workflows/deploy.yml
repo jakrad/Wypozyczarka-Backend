@@ -18,6 +18,9 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
+      - name: Add EC2 host to known_hosts
+        run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
       - name: Copy Files to EC2
         run: |
           rsync -avz --delete --exclude='.git*' ./ wypozyczarka@${{ secrets.EC2_HOST }}:/home/wypozyczarka/Wypozyczarka-Backend/
