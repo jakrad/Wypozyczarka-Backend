@@ -20,6 +20,6 @@ module.exports = function (req, res, next) {
     next();
   } catch (err) {
     console.error('Błąd weryfikacji tokenu:', err);
-    res.status(401).json({ message: 'Nieprawidłowy token, dostęp zabroniony' });
+    res.status(401).json({ message: 'Nieprawidłowy token dostęp zabroniony' });
   }
 };
