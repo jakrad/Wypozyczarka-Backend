@@ -1,0 +1,32 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Copy Files to EC2
+        run: |
+          rsync -avz --delete --exclude='.git*' ./ wypozyczarka@${{ secrets.EC2_HOST }}:/home/wypozyczarka/Wypozyczarka-Backend/
+
+      - name: Install Dependencies and Restart PM2
+        run: |
+          ssh wypozyczarka@${{ secrets.EC2_HOST }} << 'EOF'
+            cd /home/wypozyczarka/Wypozyczarka-Backend/
+            npm install
+            pm2 restart wypozyczarka-backend || pm2 start index.js --name wypozyczarka-backend
+            pm2 save
+          EOF
