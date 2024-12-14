@@ -283,4 +283,63 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /reviews/reviewed/{userId}:
+ *   get:
+ *     summary: Get reviews for a user who has been reviewed
+ *     tags: [Reviews]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the user who has been reviewed
+ *     responses:
+ *       200:
+ *         description: List of reviews for the user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Review'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/reviewed/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+    }
+
+    const reviews = await Review.findAll({
+      where: { reviewedUserId: userId },
+      include: [
+        { model: User, as: 'Reviewer', attributes: ['id', 'name', 'email'] }
+      ]
+    });
+
+    res.json(reviews);
+  } catch (error) {
+    console.error('Błąd podczas pobierania recenzji:', error);
+    res.status(500).json({ message: 'Błąd serwera' });
+  }
+});
+
+
 module.exports = router;

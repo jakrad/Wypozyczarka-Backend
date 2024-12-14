@@ -531,4 +531,64 @@ router.delete('/:toolId/images/:imageId', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /tools/user/{userId}:
+ *   get:
+ *     summary: Get tools by user ID
+ *     tags: [Tools]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the user whose tools to retrieve
+ *     responses:
+ *       200:
+ *         description: List of tools by the user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Tool'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+    }
+
+    const tools = await Tool.findAll({
+      where: { userId },
+      include: [
+        { model: ToolImage },
+        { model: User, attributes: ['id', 'name', 'email'] }
+      ]
+    });
+
+    res.json(tools);
+  } catch (error) {
+    console.error('Błąd podczas pobierania narzędzi użytkownika:', error);
+    res.status(500).json({ message: 'Błąd serwera' });
+  }
+});
+
+
 module.exports = router;
