@@ -132,4 +132,5 @@ dist
 # keys directory
 keys/
 
-combined.txt
+*.txt
+.DS_Store

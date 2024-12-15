@@ -5,6 +5,7 @@ const { User } = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
+const logger = require('../utils/logger');
 require('dotenv').config();
 
 /**
@@ -49,10 +50,12 @@ require('dotenv').config();
  */
 router.post('/register', async (req, res) => {
   const { email, password, name, phoneNumber, profileImage, role } = req.body;
+  logger.info(`Próba rejestracji użytkownika: ${email}`);
 
   try {
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
+      logger.info(`Rejestracja nieudana - email już istnieje: ${email}`);
       return res.status(400).json({ message: 'Email już istnieje' });
     }
 
@@ -67,9 +70,10 @@ router.post('/register', async (req, res) => {
       role: role || 'user'
     });
 
+    logger.info(`Użytkownik zarejestrowany pomyślnie: ${email} (ID: ${user.id})`);
     res.status(201).json({ message: 'Użytkownik zarejestrowany pomyślnie', userId: user.id });
   } catch (error) {
-    console.error('Błąd podczas rejestracji użytkownika:', error);
+    logger.error(`Błąd podczas rejestracji użytkownika: ${email}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -109,15 +113,18 @@ router.post('/register', async (req, res) => {
  */
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  logger.info(`Próba logowania użytkownika: ${email}`);
 
   try {
     const user = await User.findOne({ where: { email } });
     if (!user) {
+      logger.info(`Logowanie nieudane - nieprawidłowy email: ${email}`);
       return res.status(400).json({ message: 'Nieprawidłowe dane logowania' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      logger.info(`Logowanie nieudane - nieprawidłowe hasło dla: ${email}`);
       return res.status(400).json({ message: 'Nieprawidłowe dane logowania' });
     }
 
@@ -127,10 +134,18 @@ router.post('/login', async (req, res) => {
       { expiresIn: '1h' }
     );
 
+    logger.info(`Użytkownik zalogowany pomyślnie: ${email} (ID: ${user.id})`);
     res.json({ message: 'Zalogowano pomyślnie', token });
   } catch (error) {
-    console.error('Błąd podczas logowania użytkownika:', error);
-    res.status(500).json({ message: 'Błąd serwera' });
+    logger.error(`Błąd podczas logowania użytkownika: ${email}`, {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    res.status(500).json({
+      status: 'error',
+      message: 'Błąd serwera'
+    });
   }
 });
 
@@ -164,6 +179,7 @@ router.post('/login', async (req, res) => {
  */
 router.get('/me', auth, async (req, res) => {
   const userId = req.user.userId;
+  logger.info(`Pobieranie profilu użytkownika ID: ${userId}`);
 
   try {
     const user = await User.findByPk(userId, {
@@ -171,12 +187,14 @@ router.get('/me', auth, async (req, res) => {
     });
 
     if (!user) {
+      logger.info(`Nie znaleziono profilu użytkownika ID: ${userId}`);
       return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
     }
 
+    logger.info(`Pomyślnie pobrano profil użytkownika ID: ${userId}`);
     res.json(user);
   } catch (error) {
-    console.error('Błąd podczas pobierania użytkownika:', error);
+    logger.error(`Błąd podczas pobierania profilu użytkownika ID: ${userId}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -239,10 +257,12 @@ router.get('/me', auth, async (req, res) => {
 router.put('/me', auth, async (req, res) => {
   const userId = req.user.userId;
   const { name, phoneNumber, profileImage } = req.body;
+  logger.info(`Próba aktualizacji profilu użytkownika ID: ${userId}`);
 
   try {
     const user = await User.findByPk(userId);
     if (!user) {
+      logger.info(`Nie znaleziono użytkownika do aktualizacji ID: ${userId}`);
       return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
     }
 
@@ -251,10 +271,10 @@ router.put('/me', auth, async (req, res) => {
     user.profileImage = profileImage || user.profileImage;
 
     await user.save();
-
+    logger.info(`Pomyślnie zaktualizowano profil użytkownika ID: ${userId}`);
     res.json({ message: 'Dane użytkownika zaktualizowane pomyślnie', user });
   } catch (error) {
-    console.error('Błąd podczas aktualizacji użytkownika:', error);
+    logger.error(`Błąd podczas aktualizacji profilu użytkownika ID: ${userId}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -293,18 +313,20 @@ router.put('/me', auth, async (req, res) => {
  */
 router.delete('/me', auth, async (req, res) => {
   const userId = req.user.userId;
+  logger.info(`Próba usunięcia konta użytkownika ID: ${userId}`);
 
   try {
     const user = await User.findByPk(userId);
     if (!user) {
+      logger.info(`Nie znaleziono użytkownika do usunięcia ID: ${userId}`);
       return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
     }
 
     await user.destroy();
-
+    logger.info(`Pomyślnie usunięto konto użytkownika ID: ${userId}`);
     res.json({ message: 'Konto użytkownika usunięte pomyślnie' });
   } catch (error) {
-    console.error('Błąd podczas usuwania użytkownika:', error);
+    logger.error(`Błąd podczas usuwania konta użytkownika ID: ${userId}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -346,6 +368,7 @@ router.delete('/me', auth, async (req, res) => {
  */
 router.get('/:id', auth, async (req, res) => {
   const userId = req.params.id;
+  logger.info(`Próba pobrania danych użytkownika ID: ${userId}`);
 
   try {
     const user = await User.findByPk(userId, {
@@ -353,14 +376,41 @@ router.get('/:id', auth, async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+      logger.info(`Nie znaleziono użytkownika ID: ${userId}`);
+      return res.status(404).json({
+        status: 'error',
+        message: 'Użytkownik nie znaleziony'
+      });
     }
 
-    res.json(user);
+    logger.info(`Pomyślnie pobrano dane użytkownika ID: ${userId}`);
+    res.json({
+      status: 'success',
+      data: { user }
+    });
   } catch (error) {
-    console.error('Błąd podczas pobierania użytkownika po ID:', error);
-    res.status(500).json({ message: 'Błąd serwera' });
+    logger.error(`Błąd podczas pobierania danych użytkownika ID: ${userId}`, error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Błąd serwera'
+    });
   }
 });
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     ApiResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           enum: [success, error]
+ *         message:
+ *           type: string
+ *         data:
+ *           type: object
+ */
 
 module.exports = router;

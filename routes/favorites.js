@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const { Favorite, User, Tool } = require('../models');
 const auth = require('../middleware/auth');
+const logger = require('../utils/logger');
+const { NotFoundError, AuthorizationError, ConflictError } = require('../middleware/errorHandler');
 
 /**
  * @swagger
@@ -50,23 +52,28 @@ router.post('/', auth, async (req, res) => {
   const { toolId } = req.body;
   const userId = req.user.userId;
 
+  logger.info(`Próba dodania narzędzia ID: ${toolId} do ulubionych użytkownika ID: ${userId}`);
+
   try {
     // Sprawdź czy tool istnieje
     const tool = await Tool.findByPk(toolId);
     if (!tool) {
+      logger.info(`Narzędzie ID: ${toolId} nie istnieje`);
       return res.status(400).json({ message: 'Narzędzie nie istnieje' });
     }
 
     // Sprawdź czy już jest w ulubionych
     const existingFavorite = await Favorite.findOne({ where: { userId, toolId } });
     if (existingFavorite) {
+      logger.info(`Narzędzie ID: ${toolId} jest już w ulubionych użytkownika ID: ${userId}`);
       return res.status(400).json({ message: 'Ulubione już istnieje' });
     }
 
     const favorite = await Favorite.create({ userId, toolId });
+    logger.info(`Pomyślnie dodano narzędzie ID: ${toolId} do ulubionych użytkownika ID: ${userId}`);
     res.status(201).json({ message: 'Ulubione dodane pomyślnie', favoriteId: favorite.id });
   } catch (error) {
-    console.error('Błąd podczas dodawania ulubionego narzędzia:', error);
+    logger.error(`Błąd podczas dodawania do ulubionych: ${error.message}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -97,15 +104,17 @@ router.post('/', auth, async (req, res) => {
  */
 router.get('/', auth, async (req, res) => {
   const userId = req.user.userId;
+  logger.info(`Pobieranie ulubionych dla użytkownika ID: ${userId}`);
 
   try {
     const favorites = await Favorite.findAll({
       where: { userId },
       include: [Tool],
     });
+    logger.info(`Pomyślnie pobrano ulubione dla użytkownika ID: ${userId}`);
     res.json(favorites);
   } catch (error) {
-    console.error('Błąd podczas pobierania ulubionych:', error);
+    logger.error(`Błąd podczas pobierania ulubionych: ${error.message}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -159,20 +168,44 @@ router.delete('/:id', auth, async (req, res) => {
   const favoriteId = req.params.id;
   const userId = req.user.userId;
 
+  logger.info(`Próba usunięcia ulubionego ID: ${favoriteId} przez użytkownika ID: ${userId}`);
+
   try {
     const favorite = await Favorite.findByPk(favoriteId);
+    
     if (!favorite) {
-      return res.status(404).json({ message: 'Ulubione nie znalezione' });
+      logger.info(`Nie znaleziono ulubionego ID: ${favoriteId}`);
+      throw new NotFoundError('Ulubione nie znalezione');
     }
+    
     if (favorite.userId !== userId) {
-      return res.status(403).json({ message: 'Brak uprawnień do usunięcia tego ulubionego narzędzia' });
+      logger.info(`Odmowa dostępu: Użytkownik ${userId} próbował usunąć ulubione ${favoriteId}`);
+      throw new AuthorizationError('Brak uprawnień do usunięcia tego ulubionego');
     }
 
     await favorite.destroy();
-    res.json({ message: 'Ulubione usunięte pomyślnie' });
+    
+    logger.info(`Pomyślnie usunięto ulubione ID: ${favoriteId} użytkownika ID: ${userId}`);
+    res.json({ 
+      status: 'success',
+      message: 'Ulubione usunięte pomyślnie',
+      data: { favoriteId }
+    });
+    
   } catch (error) {
-    console.error('Błąd podczas usuwania ulubionego narzędzia:', error);
-    res.status(500).json({ message: 'Błąd serwera' });
+    if (error instanceof NotFoundError || error instanceof AuthorizationError) {
+      logger.info(`Błąd walidacji: ${error.message} (${error.name}) - ID: ${favoriteId}, UserID: ${userId}`);
+      res.status(error instanceof NotFoundError ? 404 : 403).json({
+        status: 'error',
+        message: error.message
+      });
+    } else {
+      logger.error(`Krytyczny błąd podczas usuwania ulubionego: ${error.message}`, error);
+      res.status(500).json({ 
+        status: 'error',
+        message: 'Wystąpił błąd podczas usuwania ulubionego'
+      });
+    }
   }
 });
 

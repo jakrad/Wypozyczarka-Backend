@@ -3,6 +3,9 @@ const express = require('express');
 const router = express.Router();
 const { Tool, User, ToolImage } = require('../models');
 const auth = require('../middleware/auth');
+const logger = require('../utils/logger');
+const { Op } = require('sequelize');
+const { ValidationError, NotFoundError } = require('../middleware/errorHandler');
 
 /**
  * @swagger
@@ -50,16 +53,16 @@ router.post('/', auth, async (req, res) => {
   const { name, description, category, pricePerDay, location } = req.body;
   const userId = req.user.userId;
 
-  console.log('Dodawanie narzędzia dla użytkownika ID:', userId);
+  logger.info(`Dodawanie narzędzia dla użytkownika ID: ${userId}`);
 
   try {
     const user = await User.findByPk(userId);
     if (!user) {
-      console.log('Użytkownik nie znaleziony:', userId);
+      logger.info(`Użytkownik nie znaleziony: ${userId}`);
       return res.status(400).json({ message: 'Użytkownik nie istnieje' });
     }
 
-    console.log('Znaleziono użytkownika:', user.email);
+    logger.info(`Znaleziono użytkownika: ${user.email}`);
 
     const tool = await Tool.create({
       userId,
@@ -72,7 +75,7 @@ router.post('/', auth, async (req, res) => {
 
     res.status(201).json({ message: 'Narzędzie dodane pomyślnie', toolId: tool.id });
   } catch (error) {
-    console.error('Błąd podczas dodawania narzędzia:', error);
+    logger.error('Błąd podczas dodawania narzędzia:', error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -100,6 +103,8 @@ router.post('/', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/', async (req, res) => {
+  logger.info('Próba pobrania wszystkich narzędzi'); // Dodany log początkowy
+
   try {
     const tools = await Tool.findAll({
       include: [
@@ -107,9 +112,11 @@ router.get('/', async (req, res) => {
         { model: ToolImage }
       ]
     });
+    
+    logger.info(`Pomyślnie pobrano ${tools.length} narzędzi`); // Dodany log sukcesu
     res.json(tools);
   } catch (error) {
-    console.error('Błąd podczas pobierania narzędzi:', error);
+    logger.error('Błąd podczas pobierania wszystkich narzędzi:', error); // Poprawiony format logu błędu
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -149,6 +156,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   const toolId = req.params.id;
+  logger.info(`Próba pobrania narzędzia ID: ${toolId}`); // Dodany log początkowy
 
   try {
     const tool = await Tool.findByPk(toolId, {
@@ -159,12 +167,14 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!tool) {
+      logger.info(`Nie znaleziono narzędzia ID: ${toolId}`); // Dodany log dla 404
       return res.status(404).json({ message: 'Narzędzie nie znalezione' });
     }
 
+    logger.info(`Pomyślnie pobrano narzędzie ID: ${toolId}`); // Dodany log sukcesu
     res.json(tool);
   } catch (error) {
-    console.error('Błąd podczas pobierania narzędzia:', error);
+    logger.error(`Błąd podczas pobierania narzędzia ID: ${toolId}:`, error); // Poprawiony format logu błędu
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -228,7 +238,7 @@ router.put('/:id', auth, async (req, res) => {
   const { name, description, category, pricePerDay, location } = req.body;
   const userId = req.user.userId;
 
-  console.log('Aktualizacja narzędzia ID:', toolId, 'dla użytkownika ID:', userId);
+  logger.info(`Aktualizacja narzędzia ID: ${toolId} dla użytkownika ID: ${userId}`);
 
   try {
     const tool = await Tool.findByPk(toolId);
@@ -250,7 +260,7 @@ router.put('/:id', auth, async (req, res) => {
 
     res.json({ message: 'Narzędzie zaktualizowane pomyślnie', tool });
   } catch (error) {
-    console.error('Błąd podczas aktualizacji narzędzia:', error);
+    logger.error('Błąd podczas aktualizacji narzędzia:', error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -304,23 +314,25 @@ router.delete('/:id', auth, async (req, res) => {
   const toolId = req.params.id;
   const userId = req.user.userId;
 
-  console.log('Usuwanie narzędzia ID:', toolId, 'dla użytkownika ID:', userId);
+  logger.info(`Rozpoczęto proces usuwania narzędzia ID: ${toolId} przez użytkownika ID: ${userId}`);
 
   try {
     const tool = await Tool.findByPk(toolId);
     if (!tool) {
+      logger.info(`Próba usunięcia nieistniejącego narzędzia ID: ${toolId}`);
       return res.status(404).json({ message: 'Narzędzie nie znalezione' });
     }
 
     if (tool.userId !== userId) {
+      logger.info(`Odmowa dostępu: Użytkownik ${userId} próbował usunąć narzędzie ${toolId} należące do użytkownika ${tool.userId}`);
       return res.status(403).json({ message: 'Brak uprawnień do usunięcia tego narzędzia' });
     }
 
     await tool.destroy();
-
+    logger.info(`Pomyślnie usunięto narzędzie ID: ${toolId} przez użytkownika ID: ${userId}`);
     res.json({ message: 'Narzędzie usunięte pomyślnie' });
   } catch (error) {
-    console.error('Błąd podczas usuwania narzędzia:', error);
+    logger.error(`Błąd podczas usuwania narzędzia ID: ${toolId}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -378,7 +390,7 @@ router.post('/:toolId/images', auth, async (req, res) => {
   const userId = req.user.userId;
   const { imageUrl } = req.body;
 
-  console.log('Dodawanie obrazu do narzędzia ID:', toolId, 'dla użytkownika ID:', userId);
+  logger.info(`Dodawanie obrazu do narzędzia ID: ${toolId} dla użytkownika ID: ${userId}`);
 
   try {
     const tool = await Tool.findByPk(toolId);
@@ -397,7 +409,7 @@ router.post('/:toolId/images', auth, async (req, res) => {
 
     res.status(201).json({ message: 'Obraz dodany pomyślnie', toolImageId: toolImage.id });
   } catch (error) {
-    console.error('Błąd podczas dodawania obrazu narzędzia:', error);
+    logger.error('Błąd podczas dodawania obrazu narzędzia:', error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -444,7 +456,7 @@ router.get('/:toolId/images', async (req, res) => {
     const images = await ToolImage.findAll({ where: { toolId } });
     res.json(images);
   } catch (error) {
-    console.error('Błąd podczas pobierania obrazów narzędzia:', error);
+    logger.error('Błąd podczas pobierania obrazów narzędzia:', error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -505,7 +517,7 @@ router.delete('/:toolId/images/:imageId', auth, async (req, res) => {
   const imageId = req.params.imageId;
   const userId = req.user.userId;
 
-  console.log('Usuwanie obrazu ID:', imageId, 'z narzędzia ID:', toolId, 'dla użytkownika ID:', userId);
+  logger.info(`Usuwanie obrazu ID: ${imageId} z narzędzia ID: ${toolId} dla użytkownika ID: ${userId}`);
 
   try {
     const tool = await Tool.findByPk(toolId);
@@ -526,7 +538,7 @@ router.delete('/:toolId/images/:imageId', auth, async (req, res) => {
 
     res.json({ message: 'Obraz usunięty pomyślnie' });
   } catch (error) {
-    console.error('Błąd podczas usuwania obrazu narzędzia:', error);
+    logger.error('Błąd podczas usuwania obrazu narzędzia:', error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -568,25 +580,89 @@ router.delete('/:toolId/images/:imageId', auth, async (req, res) => {
  */
 router.get('/user/:userId', async (req, res) => {
   const { userId } = req.params;
+  const { 
+    category,
+    minPrice,
+    maxPrice,
+    search,
+    sortBy = 'createdAt',
+    order = 'DESC'
+  } = req.query;
 
   try {
+    // Walidacja użytkownika
     const user = await User.findByPk(userId);
     if (!user) {
-      return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+      throw new NotFoundError('Użytkownik nie znaleziony');
+    }
+
+    // Konstruowanie warunków wyszukiwania
+    const whereClause = { userId };
+    
+    if (category) {
+      whereClause.category = category;
+    }
+    
+    if (search) {
+      whereClause.name = { [Op.iLike]: `%${search}%` };
+    }
+    
+    if (minPrice || maxPrice) {
+      whereClause.pricePerDay = {};
+      if (minPrice) whereClause.pricePerDay[Op.gte] = parseFloat(minPrice);
+      if (maxPrice) whereClause.pricePerDay[Op.lte] = parseFloat(maxPrice);
+    }
+
+    // Walidacja sortowania
+    const validSortFields = ['createdAt', 'pricePerDay', 'name'];
+    if (!validSortFields.includes(sortBy)) {
+      throw new ValidationError('Nieprawidłowe pole sortowania');
     }
 
     const tools = await Tool.findAll({
-      where: { userId },
+      where: whereClause,
       include: [
         { model: ToolImage },
         { model: User, attributes: ['id', 'name', 'email'] }
-      ]
+      ],
+      order: [[sortBy, order.toUpperCase()]]
     });
 
-    res.json(tools);
+    logger.info(`Pobrano ${tools.length} narzędzi dla użytkownika ID: ${userId}`);
+    
+    res.json({
+      status: 'success',
+      data: { tools },
+      filters: {
+        category,
+        minPrice,
+        maxPrice,
+        search,
+        sortBy,
+        order
+      }
+    });
+
   } catch (error) {
-    console.error('Błąd podczas pobierania narzędzi użytkownika:', error);
-    res.status(500).json({ message: 'Błąd serwera' });
+    if (error instanceof ValidationError) {
+      logger.info(`Błąd walidacji: ${error.message}`);
+      res.status(400).json({
+        status: 'error',
+        message: error.message
+      });
+    } else if (error instanceof NotFoundError) {
+      logger.info(`Nie znaleziono użytkownika ID: ${userId}`);
+      res.status(404).json({
+        status: 'error',
+        message: error.message
+      });
+    } else {
+      logger.error(`Błąd podczas pobierania narzędzi użytkownika ID: ${userId}:`, error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Wystąpił błąd podczas pobierania narzędzi'
+      });
+    }
   }
 });
 

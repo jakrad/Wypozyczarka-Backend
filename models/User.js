@@ -22,7 +22,10 @@ const User = sequelize.define('User', {
   },
   password: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    validate: {
+      len: [8, 100] // min 8 znaków
+    }
   },
   profileImage: {
     type: DataTypes.STRING,
@@ -34,7 +37,10 @@ const User = sequelize.define('User', {
   },
   phoneNumber: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    validate: {
+      is: /^\+?[\d\s-]{8,}$/ // format numeru telefonu
+    }
   }
 }, {
   tableName: 'user',

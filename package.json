@@ -16,7 +16,8 @@
     "mysql2": "^3.11.5",
     "sequelize": "^6.6.5",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "dotenv": "^16.4.7",
