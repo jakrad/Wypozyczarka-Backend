@@ -17,6 +17,122 @@ require('dotenv').config();
 
 /**
  * @swagger
+ * components:
+ *   schemas:
+ *     RegisterRequest:
+ *       type: object
+ *       required:
+ *         - email
+ *         - password
+ *         - name
+ *         - phoneNumber
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           description: User's email address
+ *           example: user@example.com
+ *         password:
+ *           type: string
+ *           description: User's password
+ *           example: StrongPassword123
+ *         name:
+ *           type: string
+ *           description: User's full name
+ *           example: Jan Kowalski
+ *         phoneNumber:
+ *           type: string
+ *           description: User's phone number
+ *           example: "+123456789"
+ *         profileImage:
+ *           type: string
+ *           format: url
+ *           nullable: true
+ *           description: URL to the user's profile image
+ *           example: http://example.com/images/jan.jpg
+ *         role:
+ *           type: string
+ *           description: User's role
+ *           example: user
+ *     RegisterResponse:
+ *       type: object
+ *       properties:
+ *         message:
+ *           type: string
+ *           example: Użytkownik zarejestrowany pomyślnie
+ *         userId:
+ *           type: integer
+ *           example: 1
+ *     LoginRequest:
+ *       type: object
+ *       required:
+ *         - email
+ *         - password
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           description: User's email address
+ *           example: user@example.com
+ *         password:
+ *           type: string
+ *           description: User's password
+ *           example: StrongPassword123
+ *     LoginResponse:
+ *       type: object
+ *       properties:
+ *         message:
+ *           type: string
+ *           example: Zalogowano pomyślnie
+ *         token:
+ *           type: string
+ *           description: JWT token for authenticated requests
+ *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6...
+ *         user:
+ *           type: object
+ *           properties:
+ *             id:
+ *               type: integer
+ *               example: 1
+ *             name:
+ *               type: string
+ *               example: Jan Kowalski
+ *             email:
+ *               type: string
+ *               format: email
+ *               example: jan.kowalski@example.com
+ *             profileImage:
+ *               type: string
+ *               format: url
+ *               nullable: true
+ *               example: http://example.com/images/jan.jpg
+ *             role:
+ *               type: string
+ *               example: user
+ *             phoneNumber:
+ *               type: string
+ *               example: "+123456789"
+ *             createdAt:
+ *               type: string
+ *               format: date-time
+ *               example: "2023-01-01T12:00:00Z"
+ *             updatedAt:
+ *               type: string
+ *               format: date-time
+ *               example: "2023-06-01T12:00:00Z"
+ *     ErrorResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           enum: [error]
+ *         message:
+ *           type: string
+ *           example: Błąd serwera
+ */
+
+/**
+ * @swagger
  * /users/register:
  *   post:
  *     summary: Register a new user
@@ -134,8 +250,20 @@ router.post('/login', async (req, res) => {
       { expiresIn: '1h' }
     );
 
+    // Prepare user data to send (excluding sensitive information)
+    const userData = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      profileImage: user.profileImage,
+      role: user.role,
+      phoneNumber: user.phoneNumber,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
+
     logger.info(`Użytkownik zalogowany pomyślnie: ${email} (ID: ${user.id})`);
-    res.json({ message: 'Zalogowano pomyślnie', token });
+    res.json({ message: 'Zalogowano pomyślnie', token, user: userData });
   } catch (error) {
     logger.error(`Błąd podczas logowania użytkownika: ${email}`, {
       error: error.message,
@@ -396,21 +524,5 @@ router.get('/:id', auth, async (req, res) => {
     });
   }
 });
-
-/**
- * @swagger
- * components:
- *   schemas:
- *     ApiResponse:
- *       type: object
- *       properties:
- *         status:
- *           type: string
- *           enum: [success, error]
- *         message:
- *           type: string
- *         data:
- *           type: object
- */
 
 module.exports = router;
