@@ -1,4 +1,3 @@
-// routes/tools.js
 const express = require('express');
 const router = express.Router();
 const { Tool, User, ToolImage } = require('../models');
@@ -86,6 +85,18 @@ router.post('/', auth, async (req, res) => {
  *   get:
  *     summary: Get all tools
  *     tags: [Tools]
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter tools by category
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           enum: [name_asc, name_desc, price_asc, price_desc, createdAt_asc, createdAt_desc]
+ *         description: Sort tools by name or price or creation date
  *     responses:
  *       200:
  *         description: List of tools
@@ -103,20 +114,41 @@ router.post('/', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/', async (req, res) => {
-  logger.info('Próba pobrania wszystkich narzędzi'); // Dodany log początkowy
+  logger.info('Próba pobrania wszystkich narzędzi'); // CHANGED: Logging start
+
+  const { category, sort } = req.query; // CHANGED: Extract query params
+
+  let whereClause = {};
+  if (category) {
+    whereClause.category = category; // CHANGED: Filter by category if provided
+  }
+
+  let order = [];
+  if (sort) { // CHANGED: Handle sorting
+    // Expected format: field_direction (e.g., 'name_asc', 'price_desc')
+    const [field, direction] = sort.split('_');
+    const validFields = ['name', 'pricePerDay', 'createdAt'];
+    const validDirections = ['asc', 'desc'];
+
+    if (validFields.includes(field) && validDirections.includes(direction.toLowerCase())) {
+      order.push([field, direction.toUpperCase()]);
+    }
+  }
 
   try {
     const tools = await Tool.findAll({
+      where: whereClause, // CHANGED: Apply filtering
       include: [
         { model: User, attributes: ['id', 'name', 'email'] },
         { model: ToolImage }
-      ]
+      ],
+      order: order // CHANGED: Apply sorting
     });
-    
-    logger.info(`Pomyślnie pobrano ${tools.length} narzędzi`); // Dodany log sukcesu
+
+    logger.info(`Pomyślnie pobrano ${tools.length} narzędzi`);
     res.json(tools);
   } catch (error) {
-    logger.error('Błąd podczas pobierania wszystkich narzędzi:', error); // Poprawiony format logu błędu
+    logger.error('Błąd podczas pobierania wszystkich narzędzi:', error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -156,7 +188,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   const toolId = req.params.id;
-  logger.info(`Próba pobrania narzędzia ID: ${toolId}`); // Dodany log początkowy
+  logger.info(`Próba pobrania narzędzia ID: ${toolId}`);
 
   try {
     const tool = await Tool.findByPk(toolId, {
@@ -167,14 +199,14 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!tool) {
-      logger.info(`Nie znaleziono narzędzia ID: ${toolId}`); // Dodany log dla 404
+      logger.info(`Nie znaleziono narzędzia ID: ${toolId}`);
       return res.status(404).json({ message: 'Narzędzie nie znalezione' });
     }
 
-    logger.info(`Pomyślnie pobrano narzędzie ID: ${toolId}`); // Dodany log sukcesu
+    logger.info(`Pomyślnie pobrano narzędzie ID: ${toolId}`);
     res.json(tool);
   } catch (error) {
-    logger.error(`Błąd podczas pobierania narzędzia ID: ${toolId}:`, error); // Poprawiony format logu błędu
+    logger.error(`Błąd podczas pobierania narzędzia ID: ${toolId}:`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -580,7 +612,7 @@ router.delete('/:toolId/images/:imageId', auth, async (req, res) => {
  */
 router.get('/user/:userId', async (req, res) => {
   const { userId } = req.params;
-  const { 
+  const {
     category,
     minPrice,
     maxPrice,
@@ -590,30 +622,27 @@ router.get('/user/:userId', async (req, res) => {
   } = req.query;
 
   try {
-    // Walidacja użytkownika
     const user = await User.findByPk(userId);
     if (!user) {
       throw new NotFoundError('Użytkownik nie znaleziony');
     }
 
-    // Konstruowanie warunków wyszukiwania
     const whereClause = { userId };
-    
+
     if (category) {
       whereClause.category = category;
     }
-    
+
     if (search) {
       whereClause.name = { [Op.iLike]: `%${search}%` };
     }
-    
+
     if (minPrice || maxPrice) {
       whereClause.pricePerDay = {};
       if (minPrice) whereClause.pricePerDay[Op.gte] = parseFloat(minPrice);
       if (maxPrice) whereClause.pricePerDay[Op.lte] = parseFloat(maxPrice);
     }
 
-    // Walidacja sortowania
     const validSortFields = ['createdAt', 'pricePerDay', 'name'];
     if (!validSortFields.includes(sortBy)) {
       throw new ValidationError('Nieprawidłowe pole sortowania');
@@ -629,7 +658,7 @@ router.get('/user/:userId', async (req, res) => {
     });
 
     logger.info(`Pobrano ${tools.length} narzędzi dla użytkownika ID: ${userId}`);
-    
+
     res.json({
       status: 'success',
       data: { tools },
@@ -665,6 +694,5 @@ router.get('/user/:userId', async (req, res) => {
     }
   }
 });
-
 
 module.exports = router;
