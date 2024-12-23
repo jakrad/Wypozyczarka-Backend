@@ -1,3 +1,6 @@
+// utils/logger.js
+// Utility to log messages to different log files based on log level
+
 const fs = require('fs');
 const path = require('path');
 

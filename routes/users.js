@@ -7,8 +7,8 @@ const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
 const multer = require('multer');
-const { uploadImage, deleteImage } = require('../utils/s3'); // Remove s3 from here
-const { s3 } = require('../utils/aws'); // Add s3 from aws
+const { uploadImage, deleteImage } = require('../utils/s3'); // remove s3 from here
+const { s3 } = require('../utils/aws'); // add s3 from aws
 const { ValidationError } = require('../middleware/errorHandler');
 
 // Configure multer storage (in memory)
@@ -172,7 +172,7 @@ const upload = multer({
  *           example: "Error: Something went wrong...\n    at ..."
  *           nullable: true
  *
- *     
+ *
  */
 
 /**
@@ -707,80 +707,5 @@ router.get('/:id', auth, async (req, res) => {
     });
   }
 });
-
-/**
- * @swagger
- * /users/me/profile-image/signed-url:
- *   get:
- *     summary: Get a pre-signed URL for accessing the user's profile image
- *     tags: [Users]
- *     security:
- *       - BearerAuth: []
- *     responses:
- *       200:
- *         description: Pre-signed URL for the profile image
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 imageUrl:
- *                   type: string
- *                   format: url
- *                   example: "https://your-s3-bucket.s3.eu-north-1.amazonaws.com/profiles/uuid.jpeg?AWSAccessKeyId=AKIA...&Expires=1609459200&Signature=..."
- *       404:
- *         description: Profile image not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.get('/me/profile-image/signed-url', auth, async (req, res) => {
-  const userId = req.user.userId;
-  logger.info(`Generating pre-signed URL for user ID: ${userId}`);
-
-  try {
-    const user = await User.findByPk(userId);
-    if (!user || !user.profileImage) {
-      logger.info(`User ID: ${userId} does not have a profile image`);
-      return res.status(404).json({ message: 'Profile image not found' });
-    }
-
-    logger.info(`User's profile image URL: ${user.profileImage}`);
-
-    let key;
-    try {
-      const url = new URL(user.profileImage);
-      key = decodeURIComponent(url.pathname.substring(1)); // Remove leading '/'
-      logger.info(`Extracted key from URL: ${key}`);
-    } catch (parseError) {
-      logger.error(`Invalid profileImage URL for user ID: ${userId}`, parseError);
-      return res.status(400).json({ message: 'Invalid profile image URL' });
-    }
-
-    const params = {
-      Bucket: process.env.S3_BUCKET_NAME,
-      Key: key,
-      Expires: 60 * 60, // URL valid for 1 hour
-    };
-
-    logger.info(`Generating signed URL with params: ${JSON.stringify(params)}`);
-
-    const signedUrl = s3.getSignedUrl('getObject', params);
-    logger.info(`Pre-signed URL generated: ${signedUrl}`);
-
-    res.json({ imageUrl: signedUrl });
-  } catch (error) {
-    logger.error(`Error generating pre-signed URL for user ID: ${userId}`, error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
 
 module.exports = router;
