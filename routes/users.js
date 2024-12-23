@@ -708,4 +708,71 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /users/me/profile-image/signed-url:
+ *   get:
+ *     summary: Get a pre-signed URL for accessing the user's profile image
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Pre-signed URL for the profile image
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 imageUrl:
+ *                   type: string
+ *                   format: url
+ *                   example: "https://wypozyczarka-aws-bucket.s3.eu-north-1.amazonaws.com/profiles/76b55bb8-efae-4fc3-96b2-f70104a9b813.jpeg?AWSAccessKeyId=AKIA...&Expires=1609459200&Signature=..."
+ *       404:
+ *         description: Profile image not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/me/profile-image/signed-url', auth, async (req, res) => {
+  const userId = req.user.userId;
+  logger.info(`Próba uzyskania pre-signed URL dla obrazu profilowego użytkownika ID: ${userId}`);
+
+  try {
+    const user = await User.findByPk(userId);
+    if (!user || !user.profileImage) {
+      logger.info(`Użytkownik ID: ${userId} nie ma przypisanego obrazu profilowego`);
+      return res.status(404).json({ message: 'Obraz profilowy nie znaleziony' });
+    }
+
+    const s3 = new AWS.S3({
+      region: process.env.AWS_REGION,
+    });
+
+    // Parse the S3 key from the image URL
+    const url = new URL(user.profileImage);
+    const key = decodeURIComponent(url.pathname.substring(1)); // Remove leading '/'
+
+    const params = {
+      Bucket: process.env.S3_BUCKET_NAME,
+      Key: key,
+      Expires: 60 * 60, // URL valid for 1 hour
+    };
+
+    const signedUrl = s3.getSignedUrl('getObject', params);
+    logger.info(`Pre-signed URL wygenerowany dla użytkownika ID: ${userId}`);
+    res.json({ imageUrl: signedUrl });
+  } catch (error) {
+    logger.error(`Błąd podczas generowania pre-signed URL dla użytkownika ID: ${userId}`, error);
+    res.status(500).json({ message: 'Błąd serwera' });
+  }
+});
+
 module.exports = router;
