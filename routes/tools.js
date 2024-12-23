@@ -367,7 +367,9 @@ router.delete('/:id', auth, async (req, res) => {
     }
 
     if (tool.userId !== userId) {
-      logger.info(`Odmowa dostępu: Użytkownik ${userId} próbował usunąć narzędzie ${toolId} należące do użytkownika ${tool.userId}`);
+      logger.info(
+        `Odmowa dostępu: Użytkownik ${userId} próbował usunąć narzędzie ${toolId} należące do użytkownika ${tool.userId}`
+      );
       return res.status(403).json({ message: 'Brak uprawnień do usunięcia tego narzędzia' });
     }
 
@@ -377,7 +379,6 @@ router.delete('/:id', auth, async (req, res) => {
       await deleteImage(image.imageUrl);
     }
 
-    // Delete tool (cascades to ToolImage if set up)
     await tool.destroy();
     logger.info(`Pomyślnie usunięto narzędzie ID: ${toolId} przez użytkownika ID: ${userId}`);
     res.json({ message: 'Narzędzie usunięte pomyślnie' });
@@ -556,6 +557,90 @@ router.get('/user/:userId', async (req, res) => {
         message: 'Wystąpił błąd podczas pobierania narzędzi'
       });
     }
+  }
+});
+
+/**
+ * NEW route: Upload multiple images for a given tool ID.
+ * @swagger
+ * /tools/{toolId}/images:
+ *   post:
+ *     summary: Upload one or more images for a tool (multipart form data)
+ *     tags: [Tools]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: toolId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the tool to which images belong
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: One or more image files
+ *     responses:
+ *       200:
+ *         description: List of newly uploaded images
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/ToolImage'
+ *       400:
+ *         description: Tool not found or no images provided
+ *       403:
+ *         description: Forbidden - The tool doesn’t belong to the logged user
+ *       500:
+ *         description: Server Error
+ */
+router.post('/:toolId/images', auth, upload.array('images', 3), async (req, res) => {
+  const toolId = parseInt(req.params.toolId, 10);
+  const userId = req.user.userId;
+  logger.info(`Upload images for toolID = ${toolId}, userID = ${userId}`);
+
+  try {
+    const tool = await Tool.findByPk(toolId);
+    if (!tool) {
+      return res.status(400).json({ message: 'Narzędzie nie istnieje' });
+    }
+    if (tool.userId !== userId) {
+      return res.status(403).json({ message: 'Brak uprawnień do dodania zdjęć do tego narzędzia' });
+    }
+
+    const files = req.files; // array of images
+    if (!files || files.length === 0) {
+      return res.status(400).json({ message: 'Nie przesłano żadnych obrazów' });
+    }
+
+    const results = [];
+    for (const file of files) {
+      // Upload to S3
+      const imageUrl = await uploadImage(file.buffer, file.mimetype, 'tools');
+
+      // Insert row in DB
+      const newImage = await ToolImage.create({
+        toolId: toolId,
+        imageUrl: imageUrl
+      });
+      results.push(newImage);
+    }
+
+    res.status(200).json(results);
+  } catch (error) {
+    logger.error('Błąd podczas uploadu obrazów:', error);
+    res.status(500).json({ message: 'Błąd serwera' });
   }
 });
 
