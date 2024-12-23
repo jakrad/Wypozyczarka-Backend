@@ -25,44 +25,6 @@ const options = {
         },
       },
       schemas: {
-        // Existing Schemas
-        Favorite: {
-          type: 'object',
-          properties: {
-            id: {
-              type: 'integer',
-              description: 'Unique identifier for the favorite',
-              example: 1,
-            },
-            userId: {
-              type: 'integer',
-              description: 'ID of the user who favorited the tool',
-              example: 123,
-            },
-            toolId: {
-              type: 'integer',
-              description: 'ID of the favorited tool',
-              example: 456,
-            },
-            Tool: {
-              $ref: '#/components/schemas/Tool',
-            },
-            createdAt: {
-              type: 'string',
-              format: 'date-time',
-              description: 'Timestamp when the favorite was created',
-              example: '2024-04-27T10:20:30Z',
-            },
-            updatedAt: {
-              type: 'string',
-              format: 'date-time',
-              description: 'Timestamp when the favorite was last updated',
-              example: '2024-04-27T10:20:30Z',
-            },
-          },
-        },
-        // New Schemas
-
         // User Schemas
         User: {
           type: 'object',
@@ -93,6 +55,7 @@ const options = {
               format: 'url',
               description: 'URL to the user profile image',
               example: 'http://example.com/images/profile.jpg',
+              nullable: true,
             },
             role: {
               type: 'string',
@@ -144,11 +107,13 @@ const options = {
               format: 'url',
               description: 'URL to the user profile image',
               example: 'http://example.com/images/profile.jpg',
+              nullable: true,
             },
             role: {
               type: 'string',
               description: 'User role',
               example: 'user',
+              nullable: true,
             },
           },
         },
@@ -195,14 +160,54 @@ const options = {
               description: 'JWT token',
               example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
             },
+            user: {
+              $ref: '#/components/schemas/User',
+            },
           },
         },
         ErrorResponse: {
           type: 'object',
           properties: {
+            status: {
+              type: 'string',
+              enum: ['error'],
+              example: 'error',
+            },
+            code: {
+              type: 'string',
+              example: 'VALIDATION_ERROR',
+            },
             message: {
               type: 'string',
               example: 'Błąd serwera',
+            },
+            timestamp: {
+              type: 'string',
+              format: 'date-time',
+              example: '2024-04-27T10:20:30Z',
+            },
+            path: {
+              type: 'string',
+              example: '/users/login',
+            },
+            method: {
+              type: 'string',
+              example: 'POST',
+            },
+            ip: {
+              type: 'string',
+              example: '192.168.1.1',
+            },
+            userId: {
+              type: 'integer',
+              example: 123,
+              nullable: true,
+            },
+            stack: {
+              type: 'string',
+              description: 'Error stack trace',
+              example: 'Error: Something went wrong...\n    at ...',
+              nullable: true,
             },
           },
         },
@@ -258,6 +263,15 @@ const options = {
               format: 'date-time',
               description: 'Timestamp when the tool was last updated',
               example: '2024-04-27T10:20:30Z',
+            },
+            User: {
+              $ref: '#/components/schemas/User',
+            },
+            ToolImages: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/ToolImage',
+              },
             },
           },
         },
@@ -339,13 +353,12 @@ const options = {
         },
         AddToolImageRequest: {
           type: 'object',
-          required: ['imageUrl'],
+          required: ['image'],
           properties: {
-            imageUrl: {
+            image: {
               type: 'string',
-              format: 'url',
-              description: 'URL of the tool image',
-              example: 'http://example.com/images/tool1.jpg',
+              format: 'binary',
+              description: 'Image file to upload',
             },
           },
         },
@@ -500,16 +513,28 @@ const options = {
             },
           },
         },
-        AddToolImageResponse: {
+
+        // Profile Image Schemas
+        AddProfileImageResponse: {
           type: 'object',
           properties: {
             message: {
               type: 'string',
-              example: 'Obraz dodany pomyślnie',
+              example: 'Profile image updated successfully',
             },
-            toolImageId: {
-              type: 'integer',
-              example: 101,
+            imageUrl: {
+              type: 'string',
+              format: 'url',
+              example: 'http://example.com/images/profile123.jpeg',
+            },
+          },
+        },
+        DeleteProfileImageResponse: {
+          type: 'object',
+          properties: {
+            message: {
+              type: 'string',
+              example: 'Profile image deleted successfully',
             },
           },
         },

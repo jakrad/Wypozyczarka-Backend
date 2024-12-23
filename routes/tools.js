@@ -1,3 +1,4 @@
+// routes/tools.js
 const express = require('express');
 const router = express.Router();
 const { Tool, User, ToolImage } = require('../models');
@@ -5,13 +6,24 @@ const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 const { ValidationError, NotFoundError } = require('../middleware/errorHandler');
+const multer = require('multer');
+const { uploadImage, deleteImage } = require('../utils/s3');
+const sharp = require('sharp');
+const { v4: uuidv4 } = require('uuid');
 
-/**
- * @swagger
- * tags:
- *   name: Tools
- *   description: API for managing tools and their images
- */
+// Configure multer storage (in memory)
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  },
+});
 
 /**
  * @swagger
@@ -114,18 +126,17 @@ router.post('/', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/', async (req, res) => {
-  logger.info('Próba pobrania wszystkich narzędzi'); // CHANGED: Logging start
+  logger.info('Próba pobrania wszystkich narzędzi');
 
-  const { category, sort } = req.query; // CHANGED: Extract query params
+  const { category, sort } = req.query;
 
   let whereClause = {};
   if (category) {
-    whereClause.category = category; // CHANGED: Filter by category if provided
+    whereClause.category = category;
   }
 
   let order = [];
-  if (sort) { // CHANGED: Handle sorting
-    // Expected format: field_direction (e.g., 'name_asc', 'price_desc')
+  if (sort) {
     const [field, direction] = sort.split('_');
     const validFields = ['name', 'pricePerDay', 'createdAt'];
     const validDirections = ['asc', 'desc'];
@@ -137,12 +148,12 @@ router.get('/', async (req, res) => {
 
   try {
     const tools = await Tool.findAll({
-      where: whereClause, // CHANGED: Apply filtering
+      where: whereClause,
       include: [
         { model: User, attributes: ['id', 'name', 'email'] },
         { model: ToolImage }
       ],
-      order: order // CHANGED: Apply sorting
+      order: order
     });
 
     logger.info(`Pomyślnie pobrano ${tools.length} narzędzi`);
@@ -360,88 +371,18 @@ router.delete('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Brak uprawnień do usunięcia tego narzędzia' });
     }
 
+    // Optional: Delete all associated images from S3
+    const toolImages = await ToolImage.findAll({ where: { toolId } });
+    for (const image of toolImages) {
+      await deleteImage(image.imageUrl);
+    }
+
+    // Delete tool (cascades to ToolImage if set up)
     await tool.destroy();
     logger.info(`Pomyślnie usunięto narzędzie ID: ${toolId} przez użytkownika ID: ${userId}`);
     res.json({ message: 'Narzędzie usunięte pomyślnie' });
   } catch (error) {
     logger.error(`Błąd podczas usuwania narzędzia ID: ${toolId}`, error);
-    res.status(500).json({ message: 'Błąd serwera' });
-  }
-});
-
-/**
- * @swagger
- * /tools/{toolId}/images:
- *   post:
- *     summary: Add an image to a tool
- *     tags: [Tools]
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: toolId
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID of the tool to add an image to
- *     requestBody:
- *       description: Image URL to add
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/AddToolImageRequest'
- *     responses:
- *       201:
- *         description: Image added successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/AddToolImageResponse'
- *       403:
- *         description: Forbidden - No permission to add image to this tool
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: Tool not found or image not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.post('/:toolId/images', auth, async (req, res) => {
-  const toolId = req.params.toolId;
-  const userId = req.user.userId;
-  const { imageUrl } = req.body;
-
-  logger.info(`Dodawanie obrazu do narzędzia ID: ${toolId} dla użytkownika ID: ${userId}`);
-
-  try {
-    const tool = await Tool.findByPk(toolId);
-    if (!tool) {
-      return res.status(404).json({ message: 'Narzędzie nie znalezione' });
-    }
-
-    if (tool.userId !== userId) {
-      return res.status(403).json({ message: 'Brak uprawnień do dodania obrazu do tego narzędzia' });
-    }
-
-    const toolImage = await ToolImage.create({
-      toolId: toolId,
-      imageUrl: imageUrl
-    });
-
-    res.status(201).json({ message: 'Obraz dodany pomyślnie', toolImageId: toolImage.id });
-  } catch (error) {
-    logger.error('Błąd podczas dodawania obrazu narzędzia:', error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -485,92 +426,15 @@ router.get('/:toolId/images', async (req, res) => {
   const toolId = req.params.toolId;
 
   try {
-    const images = await ToolImage.findAll({ where: { toolId } });
-    res.json(images);
-  } catch (error) {
-    logger.error('Błąd podczas pobierania obrazów narzędzia:', error);
-    res.status(500).json({ message: 'Błąd serwera' });
-  }
-});
-
-/**
- * @swagger
- * /tools/{toolId}/images/{imageId}:
- *   delete:
- *     summary: Delete an image from a tool
- *     tags: [Tools]
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: toolId
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID of the tool
- *       - in: path
- *         name: imageId
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID of the image to delete
- *     responses:
- *       200:
- *         description: Image deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: Obraz usunięty pomyślnie
- *       403:
- *         description: Forbidden - No permission to delete image from this tool
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: Tool or Image not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.delete('/:toolId/images/:imageId', auth, async (req, res) => {
-  const toolId = req.params.toolId;
-  const imageId = req.params.imageId;
-  const userId = req.user.userId;
-
-  logger.info(`Usuwanie obrazu ID: ${imageId} z narzędzia ID: ${toolId} dla użytkownika ID: ${userId}`);
-
-  try {
     const tool = await Tool.findByPk(toolId);
     if (!tool) {
       return res.status(404).json({ message: 'Narzędzie nie znalezione' });
     }
 
-    if (tool.userId !== userId) {
-      return res.status(403).json({ message: 'Brak uprawnień do usunięcia obrazu z tego narzędzia' });
-    }
-
-    const toolImage = await ToolImage.findByPk(imageId);
-    if (!toolImage || toolImage.toolId !== parseInt(toolId)) {
-      return res.status(404).json({ message: 'Obraz nie znaleziony' });
-    }
-
-    await toolImage.destroy();
-
-    res.json({ message: 'Obraz usunięty pomyślnie' });
+    const images = await ToolImage.findAll({ where: { toolId } });
+    res.json(images);
   } catch (error) {
-    logger.error('Błąd podczas usuwania obrazu narzędzia:', error);
+    logger.error('Błąd podczas pobierania obrazów narzędzia:', error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });

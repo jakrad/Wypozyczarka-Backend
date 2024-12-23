@@ -134,3 +134,5 @@ keys/
 
 *.txt
 .DS_Store
+*.bat
+*.ps1

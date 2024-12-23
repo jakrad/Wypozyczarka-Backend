@@ -6,7 +6,24 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
+const multer = require('multer'); // Import multer
+const { uploadImage, deleteImage } = require('../utils/s3');
+const { ValidationError } = require('../middleware/errorHandler');
 require('dotenv').config();
+
+// Configure multer storage (in memory)
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  },
+});
 
 /**
  * @swagger
@@ -25,7 +42,6 @@ require('dotenv').config();
  *         - email
  *         - password
  *         - name
- *         - phoneNumber
  *       properties:
  *         email:
  *           type: string
@@ -126,9 +142,37 @@ require('dotenv').config();
  *         status:
  *           type: string
  *           enum: [error]
+ *           example: error
+ *         code:
+ *           type: string
+ *           example: VALIDATION_ERROR
  *         message:
  *           type: string
  *           example: Błąd serwera
+ *         timestamp:
+ *           type: string
+ *           format: date-time
+ *           example: "2024-04-27T10:20:30Z"
+ *         path:
+ *           type: string
+ *           example: "/users/login"
+ *         method:
+ *           type: string
+ *           example: "POST"
+ *         ip:
+ *           type: string
+ *           example: "192.168.1.1"
+ *         userId:
+ *           type: integer
+ *           example: 123
+ *           nullable: true
+ *         stack:
+ *           type: string
+ *           description: Error stack trace
+ *           example: "Error: Something went wrong...\n    at ..."
+ *           nullable: true
+ *
+ *     
  */
 
 /**
@@ -329,6 +373,149 @@ router.get('/me', auth, async (req, res) => {
 
 /**
  * @swagger
+ * /users/me/profile-image:
+ *   post:
+ *     summary: Upload or update profile image
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       description: Profile image file to upload
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               profileImage:
+ *                 type: string
+ *                 format: binary
+ *                 description: Profile image file to upload
+ *     responses:
+ *       200:
+ *         description: Profile image updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AddProfileImageResponse'
+ *       400:
+ *         description: Bad Request - No file provided or invalid file type/size
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/me/profile-image', auth, upload.single('profileImage'), async (req, res) => {
+  const file = req.file;
+  const userId = req.user.userId;
+
+  if (!file) {
+    logger.info(`Próba dodania obrazu bez pliku dla użytkownika ID: ${userId}`);
+    return res.status(400).json({ message: 'Brak pliku obrazu' });
+  }
+
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+    }
+
+    // Optional: Delete existing profile image from S3 if it exists
+    if (user.profileImage) {
+      await deleteImage(user.profileImage);
+    }
+
+    // Upload new profile image to S3
+    const imageUrl = await uploadImage(file.buffer, file.mimetype, 'profiles');
+
+    // Update user's profile image URL in the database
+    user.profileImage = imageUrl;
+    await user.save();
+
+    logger.info(`Profile image updated for user ID: ${userId}`);
+    res.json({ message: 'Profile image updated successfully', imageUrl });
+  } catch (error) {
+    logger.error('Error uploading profile image:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /users/me/profile-image:
+ *   delete:
+ *     summary: Delete profile image
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profile image deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DeleteProfileImageResponse'
+ *       400:
+ *         description: Bad Request - No profile image to delete
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.delete('/me/profile-image', auth, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+    }
+
+    if (!user.profileImage) {
+      return res.status(400).json({ message: 'Brak obrazu profilowego do usunięcia' });
+    }
+
+    // Delete image from S3
+    await deleteImage(user.profileImage);
+
+    // Remove image URL from the database
+    user.profileImage = null;
+    await user.save();
+
+    logger.info(`Profile image deleted for user ID: ${userId}`);
+    res.json({ message: 'Profile image deleted successfully' });
+  } catch (error) {
+    logger.error('Error deleting profile image:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @swagger
  * /users/me:
  *   put:
  *     summary: Update logged-in user's data
@@ -336,7 +523,7 @@ router.get('/me', auth, async (req, res) => {
  *     security:
  *       - BearerAuth: []
  *     requestBody:
- *       description: User data to update
+ *       description: User data to update (excluding profileImage)
  *       required: true
  *       content:
  *         application/json:
@@ -351,11 +538,6 @@ router.get('/me', auth, async (req, res) => {
  *                 type: string
  *                 description: Updated phone number
  *                 example: +987654321
- *               profileImage:
- *                 type: string
- *                 format: url
- *                 description: Updated profile image URL
- *                 example: http://example.com/images/new-profile.jpg
  *     responses:
  *       200:
  *         description: User data updated successfully
@@ -384,7 +566,7 @@ router.get('/me', auth, async (req, res) => {
  */
 router.put('/me', auth, async (req, res) => {
   const userId = req.user.userId;
-  const { name, phoneNumber, profileImage } = req.body;
+  const { name, phoneNumber } = req.body; // Removed profileImage from payload
   logger.info(`Próba aktualizacji profilu użytkownika ID: ${userId}`);
 
   try {
@@ -396,7 +578,7 @@ router.put('/me', auth, async (req, res) => {
 
     user.name = name || user.name;
     user.phoneNumber = phoneNumber || user.phoneNumber;
-    user.profileImage = profileImage || user.profileImage;
+    // Removed profileImage update from here
 
     await user.save();
     logger.info(`Pomyślnie zaktualizowano profil użytkownika ID: ${userId}`);
@@ -421,11 +603,7 @@ router.put('/me', auth, async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: Konto użytkownika usunięte pomyślnie
+ *               $ref: '#/components/schemas/DeleteProfileImageResponse'
  *       404:
  *         description: User not found
  *         content:
@@ -448,6 +626,11 @@ router.delete('/me', auth, async (req, res) => {
     if (!user) {
       logger.info(`Nie znaleziono użytkownika do usunięcia ID: ${userId}`);
       return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+    }
+
+    // Optional: Delete profile image from S3 if it exists
+    if (user.profileImage) {
+      await deleteImage(user.profileImage);
     }
 
     await user.destroy();
