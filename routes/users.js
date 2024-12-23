@@ -9,6 +9,7 @@ const logger = require('../utils/logger');
 const multer = require('multer'); // Import multer
 const { uploadImage, deleteImage } = require('../utils/s3');
 const { ValidationError } = require('../middleware/errorHandler');
+const AWS = require('aws-sdk');
 require('dotenv').config();
 
 // Configure multer storage (in memory)
