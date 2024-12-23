@@ -26,7 +26,6 @@ const uploadImage = async (fileBuffer, mimeType, directory) => {
     Key: fileName,
     Body: compressedImage,
     ContentType: 'image/jpeg',
-    ACL: 'public-read',  // <-- changed to always be public
   };
 
   try {
