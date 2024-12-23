@@ -17,7 +17,7 @@ const s3 = new AWS.S3({
  * @returns {string} - The URL of the uploaded image.
  */
 const uploadImage = async (fileBuffer, mimeType, directory) => {
-  // Optional: Compress and resize the image using Sharp
+  // Compress and resize the image using Sharp
   const compressedImage = await sharp(fileBuffer)
     .resize({ width: 800, withoutEnlargement: true }) // Resize to a max width of 800px
     .toFormat('jpeg', { quality: 80 }) // Convert to JPEG with 80% quality
@@ -69,4 +69,5 @@ const deleteImage = async (imageUrl) => {
 module.exports = {
   uploadImage,
   deleteImage,
+  s3,
 };

@@ -744,22 +744,23 @@ router.get('/:id', auth, async (req, res) => {
  */
 router.get('/me/profile-image/signed-url', auth, async (req, res) => {
   const userId = req.user.userId;
-  logger.info(`Próba uzyskania pre-signed URL dla obrazu profilowego użytkownika ID: ${userId}`);
+  logger.info(`Generating pre-signed URL for user ID: ${userId}`);
 
   try {
     const user = await User.findByPk(userId);
     if (!user || !user.profileImage) {
-      logger.info(`Użytkownik ID: ${userId} nie ma przypisanego obrazu profilowego`);
-      return res.status(404).json({ message: 'Obraz profilowy nie znaleziony' });
+      logger.info(`User ID: ${userId} does not have a profile image`);
+      return res.status(404).json({ message: 'Profile image not found' });
     }
 
-    const s3 = new AWS.S3({
-      region: process.env.AWS_REGION,
-    });
-
-    // Parse the S3 key from the image URL
-    const url = new URL(user.profileImage);
-    const key = decodeURIComponent(url.pathname.substring(1)); // Remove leading '/'
+    let key;
+    try {
+      const url = new URL(user.profileImage);
+      key = decodeURIComponent(url.pathname.substring(1)); // Remove leading '/'
+    } catch (parseError) {
+      logger.error(`Invalid profileImage URL for user ID: ${userId}`, parseError);
+      return res.status(400).json({ message: 'Invalid profile image URL' });
+    }
 
     const params = {
       Bucket: process.env.S3_BUCKET_NAME,
@@ -768,12 +769,13 @@ router.get('/me/profile-image/signed-url', auth, async (req, res) => {
     };
 
     const signedUrl = s3.getSignedUrl('getObject', params);
-    logger.info(`Pre-signed URL wygenerowany dla użytkownika ID: ${userId}`);
+    logger.info(`Pre-signed URL generated for user ID: ${userId}`);
     res.json({ imageUrl: signedUrl });
   } catch (error) {
-    logger.error(`Błąd podczas generowania pre-signed URL dla użytkownika ID: ${userId}`, error);
-    res.status(500).json({ message: 'Błąd serwera' });
+    logger.error(`Error generating pre-signed URL for user ID: ${userId}`, error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 module.exports = router;
