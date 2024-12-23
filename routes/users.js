@@ -6,8 +6,9 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
-const multer = require('multer'); // Import multer
-const { uploadImage, deleteImage, s3 } = require('../utils/s3'); // Import s3
+const multer = require('multer');
+const { uploadImage, deleteImage } = require('../utils/s3'); // Remove s3 from here
+const { s3 } = require('../utils/aws'); // Add s3 from aws
 const { ValidationError } = require('../middleware/errorHandler');
 require('dotenv').config();
 
