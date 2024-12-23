@@ -1,3 +1,8 @@
+// index.js
+
+// Load environment variables first
+require('dotenv').config();
+
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger'); // Swagger configuration
@@ -35,6 +40,11 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/tools', toolRoutes);
 app.use('/api/favorites', favoriteRoutes);
 
+// Root Endpoint
+app.get('/', (req, res) => {
+  res.send('Server is running! Visit /api-docs for API documentation.');
+});
+
 // Initialize models and start the HTTPS server
 initModels()
   .then(() => {
@@ -45,8 +55,3 @@ initModels()
   .catch((err) => {
     console.error('Błąd podczas inicjalizacji modeli:', err);
   });
-
-  app.get('/', (req, res) => {
-    res.send('Server is running! Visit /api-docs for API documentation.');
-  });
-  

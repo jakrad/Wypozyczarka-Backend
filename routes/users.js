@@ -10,7 +10,6 @@ const multer = require('multer');
 const { uploadImage, deleteImage } = require('../utils/s3'); // Remove s3 from here
 const { s3 } = require('../utils/aws'); // Add s3 from aws
 const { ValidationError } = require('../middleware/errorHandler');
-require('dotenv').config();
 
 // Configure multer storage (in memory)
 const storage = multer.memoryStorage();
@@ -728,7 +727,7 @@ router.get('/:id', auth, async (req, res) => {
  *                 imageUrl:
  *                   type: string
  *                   format: url
- *                   example: "https://wypozyczarka-aws-bucket.s3.eu-north-1.amazonaws.com/profiles/76b55bb8-efae-4fc3-96b2-f70104a9b813.jpeg?AWSAccessKeyId=AKIA...&Expires=1609459200&Signature=..."
+ *                   example: "https://your-s3-bucket.s3.eu-north-1.amazonaws.com/profiles/uuid.jpeg?AWSAccessKeyId=AKIA...&Expires=1609459200&Signature=..."
  *       404:
  *         description: Profile image not found
  *         content:
@@ -753,10 +752,13 @@ router.get('/me/profile-image/signed-url', auth, async (req, res) => {
       return res.status(404).json({ message: 'Profile image not found' });
     }
 
+    logger.info(`User's profile image URL: ${user.profileImage}`);
+
     let key;
     try {
       const url = new URL(user.profileImage);
       key = decodeURIComponent(url.pathname.substring(1)); // Remove leading '/'
+      logger.info(`Extracted key from URL: ${key}`);
     } catch (parseError) {
       logger.error(`Invalid profileImage URL for user ID: ${userId}`, parseError);
       return res.status(400).json({ message: 'Invalid profile image URL' });
@@ -768,8 +770,11 @@ router.get('/me/profile-image/signed-url', auth, async (req, res) => {
       Expires: 60 * 60, // URL valid for 1 hour
     };
 
+    logger.info(`Generating signed URL with params: ${JSON.stringify(params)}`);
+
     const signedUrl = s3.getSignedUrl('getObject', params);
-    logger.info(`Pre-signed URL generated for user ID: ${userId}`);
+    logger.info(`Pre-signed URL generated: ${signedUrl}`);
+
     res.json({ imageUrl: signedUrl });
   } catch (error) {
     logger.error(`Error generating pre-signed URL for user ID: ${userId}`, error);

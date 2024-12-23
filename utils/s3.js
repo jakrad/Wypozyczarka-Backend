@@ -1,4 +1,5 @@
-// utils/s3.js
+// utils\s3.js
+
 const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('./logger');
@@ -25,7 +26,7 @@ const uploadImage = async (fileBuffer, mimeType, directory) => {
     Key: fileName,
     Body: compressedImage,
     ContentType: 'image/jpeg',
-    ACL: directory === 'tools' ? 'public-read' : 'private'
+    ACL: directory === 'tools' ? 'public-read' : 'private',
   };
 
   try {
@@ -45,7 +46,7 @@ const uploadImage = async (fileBuffer, mimeType, directory) => {
 const deleteImage = async (imageUrl) => {
   try {
     const url = new URL(imageUrl);
-    const key = decodeURIComponent(url.pathname.substring(1));
+    const key = decodeURIComponent(url.pathname.substring(1)); // Remove leading '/'
 
     const params = {
       Bucket: process.env.S3_BUCKET_NAME,
@@ -63,5 +64,4 @@ const deleteImage = async (imageUrl) => {
 module.exports = {
   uploadImage,
   deleteImage,
-  s3,
 };
