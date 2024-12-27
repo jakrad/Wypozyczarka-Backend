@@ -1,4 +1,5 @@
-// routes/reviews.js
+// routes\reviews.js
+
 const express = require('express');
 const router = express.Router();
 const { Review, User } = require('../models');
@@ -216,8 +217,14 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     // Aktualizacja pola rating i comment jeśli podane
-    if (rating !== undefined) review.rating = rating;
-    if (comment !== undefined) review.comment = comment;
+    if (rating !== undefined) {
+      review.rating = rating;
+      logger.info(`Zaktualizowano rating recenzji ID: ${reviewId} na: ${rating}`);
+    }
+    if (comment !== undefined) {
+      review.comment = comment;
+      logger.info(`Zaktualizowano komentarz recenzji ID: ${reviewId} na: "${comment}"`);
+    }
 
     await review.save();
 
@@ -269,10 +276,6 @@ router.put('/:id', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete('/:id', auth, async (req, res) => {
   const reviewId = req.params.id;
@@ -371,10 +374,6 @@ router.delete('/:id', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/reviewed/:userId', async (req, res) => {
   const { userId } = req.params;

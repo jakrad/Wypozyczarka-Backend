@@ -1,4 +1,5 @@
-// routes/tools.js
+// routes\tools.js
+
 const express = require('express');
 const router = express.Router();
 const { Tool, User, ToolImage } = require('../models');
@@ -17,13 +18,22 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5MB
   fileFilter: (req, file, cb) => {
+    logger.info(`Multer fileFilter: Checking file ${file.originalname}, mimetype=${file.mimetype}`);
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
+      logger.warn(`Multer fileFilter: Rejected file ${file.originalname} due to invalid mimetype=${file.mimetype}`);
       cb(new Error('Only image files are allowed!'), false);
     }
   },
 });
+
+/**
+ * @swagger
+ * tags:
+ *   name: Tools
+ *   description: API for managing tools and their images
+ */
 
 /**
  * @swagger
@@ -55,10 +65,6 @@ const upload = multer({
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/', auth, async (req, res) => {
   const { name, description, category, pricePerDay, location } = req.body;
@@ -84,6 +90,7 @@ router.post('/', auth, async (req, res) => {
       location
     });
 
+    logger.info(`Narzędzie dodane pomyślnie: ToolID=${tool.id} przez UserID=${userId}`);
     res.status(201).json({ message: 'Narzędzie dodane pomyślnie', toolId: tool.id });
   } catch (error) {
     logger.error('Błąd podczas dodawania narzędzia:', error);
@@ -120,10 +127,6 @@ router.post('/', auth, async (req, res) => {
  *                 $ref: '#/components/schemas/Tool'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/', async (req, res) => {
   logger.info('Próba pobrania wszystkich narzędzi');
@@ -192,10 +195,6 @@ router.get('/', async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:id', async (req, res) => {
   const toolId = req.params.id;
@@ -271,10 +270,6 @@ router.get('/:id', async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.put('/:id', auth, async (req, res) => {
   const toolId = req.params.id;
@@ -286,10 +281,14 @@ router.put('/:id', auth, async (req, res) => {
   try {
     const tool = await Tool.findByPk(toolId);
     if (!tool) {
+      logger.info(`Próba aktualizacji nieistniejącego narzędzia ID: ${toolId}`);
       return res.status(404).json({ message: 'Narzędzie nie znalezione' });
     }
 
     if (tool.userId !== userId) {
+      logger.info(
+        `Odmowa dostępu: Użytkownik ${userId} próbował zaktualizować narzędzie ${toolId} należące do użytkownika ${tool.userId}`
+      );
       return res.status(403).json({ message: 'Brak uprawnień do aktualizacji tego narzędzia' });
     }
 
@@ -301,6 +300,7 @@ router.put('/:id', auth, async (req, res) => {
 
     await tool.save();
 
+    logger.info(`Pomyślnie zaktualizowano narzędzie ID: ${toolId}`);
     res.json({ message: 'Narzędzie zaktualizowane pomyślnie', tool });
   } catch (error) {
     logger.error('Błąd podczas aktualizacji narzędzia:', error);
@@ -348,10 +348,6 @@ router.put('/:id', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete('/:id', auth, async (req, res) => {
   const toolId = req.params.id;
@@ -376,7 +372,9 @@ router.delete('/:id', auth, async (req, res) => {
     // Optional: Delete all associated images from S3
     const toolImages = await ToolImage.findAll({ where: { toolId } });
     for (const image of toolImages) {
+      logger.info(`Usuwanie obrazu z S3: ${image.imageUrl} dla narzędzia ID: ${toolId}`);
       await deleteImage(image.imageUrl);
+      logger.info(`Usunięto obraz z S3: ${image.imageUrl}`);
     }
 
     await tool.destroy();
@@ -418,21 +416,21 @@ router.delete('/:id', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:toolId/images', async (req, res) => {
   const toolId = req.params.toolId;
 
+  logger.info(`Próba pobrania obrazów narzędzia ID: ${toolId}`);
+
   try {
     const tool = await Tool.findByPk(toolId);
     if (!tool) {
+      logger.info(`Nie znaleziono narzędzia ID: ${toolId}`);
       return res.status(404).json({ message: 'Narzędzie nie znalezione' });
     }
 
     const images = await ToolImage.findAll({ where: { toolId } });
+    logger.info(`Pomyślnie pobrano ${images.length} obrazów dla narzędzia ID: ${toolId}`);
     res.json(images);
   } catch (error) {
     logger.error('Błąd podczas pobierania obrazów narzędzia:', error);
@@ -470,10 +468,6 @@ router.get('/:toolId/images', async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/user/:userId', async (req, res) => {
   const { userId } = req.params;
@@ -486,9 +480,12 @@ router.get('/user/:userId', async (req, res) => {
     order = 'DESC'
   } = req.query;
 
+  logger.info(`Próba pobrania narzędzi dla użytkownika ID: ${userId} z filtrami: ${JSON.stringify(req.query)}`);
+
   try {
     const user = await User.findByPk(userId);
     if (!user) {
+      logger.warn(`Nie znaleziono użytkownika ID: ${userId}`);
       throw new NotFoundError('Użytkownik nie znaleziony');
     }
 
@@ -496,20 +493,29 @@ router.get('/user/:userId', async (req, res) => {
 
     if (category) {
       whereClause.category = category;
+      logger.info(`Filtracja narzędzi po kategorii: ${category}`);
     }
 
     if (search) {
       whereClause.name = { [Op.iLike]: `%${search}%` };
+      logger.info(`Filtracja narzędzi po nazwie zawierającej: ${search}`);
     }
 
     if (minPrice || maxPrice) {
       whereClause.pricePerDay = {};
-      if (minPrice) whereClause.pricePerDay[Op.gte] = parseFloat(minPrice);
-      if (maxPrice) whereClause.pricePerDay[Op.lte] = parseFloat(maxPrice);
+      if (minPrice) {
+        whereClause.pricePerDay[Op.gte] = parseFloat(minPrice);
+        logger.info(`Filtracja narzędzi po minimalnej cenie: ${minPrice}`);
+      }
+      if (maxPrice) {
+        whereClause.pricePerDay[Op.lte] = parseFloat(maxPrice);
+        logger.info(`Filtracja narzędzi po maksymalnej cenie: ${maxPrice}`);
+      }
     }
 
     const validSortFields = ['createdAt', 'pricePerDay', 'name'];
     if (!validSortFields.includes(sortBy)) {
+      logger.warn(`Nieprawidłowe pole sortowania: ${sortBy}`);
       throw new ValidationError('Nieprawidłowe pole sortowania');
     }
 
@@ -523,7 +529,6 @@ router.get('/user/:userId', async (req, res) => {
     });
 
     logger.info(`Pobrano ${tools.length} narzędzi dla użytkownika ID: ${userId}`);
-
     res.json({
       status: 'success',
       data: { tools },
@@ -561,7 +566,6 @@ router.get('/user/:userId', async (req, res) => {
 });
 
 /**
- * NEW route: Upload multiple images for a given tool ID.
  * @swagger
  * /tools/{toolId}/images:
  *   post:
@@ -608,32 +612,48 @@ router.get('/user/:userId', async (req, res) => {
 router.post('/:toolId/images', auth, upload.array('images', 3), async (req, res) => {
   const toolId = parseInt(req.params.toolId, 10);
   const userId = req.user.userId;
-  logger.info(`Upload images for toolID = ${toolId}, userID = ${userId}`);
+
+  logger.info(`Upload images initiated for toolID = ${toolId}, userID = ${userId}`);
 
   try {
-    const tool = await Tool.findByPk(toolId);
-    if (!tool) {
-      return res.status(400).json({ message: 'Narzędzie nie istnieje' });
-    }
-    if (tool.userId !== userId) {
-      return res.status(403).json({ message: 'Brak uprawnień do dodania zdjęć do tego narzędzia' });
+    // Inspect the request
+    logger.info(`Received ${req.files?.length || 0} files for toolID = ${toolId}`);
+
+    if (!req.files || req.files.length === 0) {
+      logger.warn(`No images provided for toolID = ${toolId}`);
+      return res.status(400).json({ message: 'No images provided' });
     }
 
-    const files = req.files; // array of images
-    if (!files || files.length === 0) {
-      return res.status(400).json({ message: 'Nie przesłano żadnych obrazów' });
+    req.files.forEach((file, idx) => {
+      logger.info(`Processing File[${idx}]: originalname=${file.originalname}, mimetype=${file.mimetype}, size=${file.size} bytes`);
+    });
+
+    const tool = await Tool.findByPk(toolId);
+    if (!tool) {
+      logger.warn(`Tool not found: toolID = ${toolId}`);
+      return res.status(400).json({ message: 'Tool does not exist' });
+    }
+
+    if (tool.userId !== userId) {
+      logger.warn(`UserID = ${userId} does not own toolID = ${toolId}`);
+      return res.status(403).json({ message: 'No permission to add images to this tool' });
     }
 
     const results = [];
-    for (const file of files) {
+    for (const file of req.files) {
+      logger.info(`Uploading image: ${file.originalname}`);
+
       // Upload to S3
       const imageUrl = await uploadImage(file.buffer, file.mimetype, 'tools');
+      logger.info(`Image uploaded to S3: ${imageUrl}`);
 
       // Insert row in DB
       const newImage = await ToolImage.create({
         toolId: toolId,
         imageUrl: imageUrl
       });
+      logger.info(`ToolImage record created: ${newImage.id}`);
+
       results.push(newImage);
     }
 

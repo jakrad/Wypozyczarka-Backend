@@ -1,4 +1,5 @@
-// routes/users.js
+// routes\users.js
+
 const express = require('express');
 const router = express.Router();
 const { User } = require('../models');
@@ -17,9 +18,11 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5MB
   fileFilter: (req, file, cb) => {
+    logger.info(`Multer fileFilter: Checking file ${file.originalname}, mimetype=${file.mimetype}`);
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
+      logger.warn(`Multer fileFilter: Rejected file ${file.originalname} due to invalid mimetype=${file.mimetype}`);
       cb(new Error('Only image files are allowed!'), false);
     }
   },
@@ -203,10 +206,6 @@ const upload = multer({
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/register', async (req, res) => {
   const { email, password, name, phoneNumber, profileImage, role } = req.body;
@@ -266,10 +265,6 @@ router.post('/register', async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -344,10 +339,6 @@ router.post('/login', async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/me', auth, async (req, res) => {
   const userId = req.user.userId;
@@ -412,39 +403,42 @@ router.get('/me', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/me/profile-image', auth, upload.single('profileImage'), async (req, res) => {
   const file = req.file;
   const userId = req.user.userId;
 
+  logger.info(`Upload profile image initiated for userID = ${userId}`);
+
   if (!file) {
-    logger.info(`Próba dodania obrazu bez pliku dla użytkownika ID: ${userId}`);
+    logger.warn(`Próba dodania obrazu bez pliku dla użytkownika ID: ${userId}`);
     return res.status(400).json({ message: 'Brak pliku obrazu' });
   }
 
   try {
     const user = await User.findByPk(userId);
     if (!user) {
+      logger.warn(`User not found: userID = ${userId}`);
       return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
     }
 
     // Optional: Delete existing profile image from S3 if it exists
     if (user.profileImage) {
+      logger.info(`Deleting existing profile image for userID = ${userId}: ${user.profileImage}`);
       await deleteImage(user.profileImage);
+      logger.info(`Deleted existing profile image for userID = ${userId}`);
     }
 
     // Upload new profile image to S3
+    logger.info(`Uploading new profile image to S3 for userID = ${userId}`);
     const imageUrl = await uploadImage(file.buffer, file.mimetype, 'profiles');
+    logger.info(`Uploaded new profile image to S3: ${imageUrl} for userID = ${userId}`);
 
     // Update user's profile image URL in the database
     user.profileImage = imageUrl;
     await user.save();
+    logger.info(`Updated profileImage in DB for userID = ${userId}`);
 
-    logger.info(`Profile image updated for user ID: ${userId}`);
     res.json({ message: 'Profile image updated successfully', imageUrl });
   } catch (error) {
     logger.error('Error uploading profile image:', error);
@@ -481,32 +475,33 @@ router.post('/me/profile-image', auth, upload.single('profileImage'), async (req
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete('/me/profile-image', auth, async (req, res) => {
   const userId = req.user.userId;
+  logger.info(`Delete profile image initiated for userID = ${userId}`);
 
   try {
     const user = await User.findByPk(userId);
     if (!user) {
+      logger.warn(`User not found: userID = ${userId}`);
       return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
     }
 
     if (!user.profileImage) {
+      logger.warn(`No profile image to delete for userID = ${userId}`);
       return res.status(400).json({ message: 'Brak obrazu profilowego do usunięcia' });
     }
 
     // Delete image from S3
+    logger.info(`Deleting profile image from S3: ${user.profileImage} for userID = ${userId}`);
     await deleteImage(user.profileImage);
+    logger.info(`Deleted profile image from S3 for userID = ${userId}`);
 
     // Remove image URL from the database
     user.profileImage = null;
     await user.save();
+    logger.info(`Removed profileImage from DB for userID = ${userId}`);
 
-    logger.info(`Profile image deleted for user ID: ${userId}`);
     res.json({ message: 'Profile image deleted successfully' });
   } catch (error) {
     logger.error('Error deleting profile image:', error);
@@ -559,10 +554,6 @@ router.delete('/me/profile-image', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.put('/me', auth, async (req, res) => {
   const userId = req.user.userId;
@@ -612,10 +603,6 @@ router.put('/me', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete('/me', auth, async (req, res) => {
   const userId = req.user.userId;
@@ -630,7 +617,9 @@ router.delete('/me', auth, async (req, res) => {
 
     // Optional: Delete profile image from S3 if it exists
     if (user.profileImage) {
+      logger.info(`Deleting profile image from S3: ${user.profileImage} for userID = ${userId}`);
       await deleteImage(user.profileImage);
+      logger.info(`Deleted profile image from S3 for userID = ${userId}`);
     }
 
     await user.destroy();
@@ -672,10 +661,6 @@ router.delete('/me', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:id', auth, async (req, res) => {
   const userId = req.params.id;

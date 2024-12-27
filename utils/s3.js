@@ -13,24 +13,32 @@ const { s3 } = require('./aws');
  * @returns {string} - The URL of the uploaded image.
  */
 const uploadImage = async (fileBuffer, mimeType, directory) => {
-  // Compress and resize the image using Sharp
-  const compressedImage = await sharp(fileBuffer)
-    .resize({ width: 800, withoutEnlargement: true })
-    .toFormat('jpeg', { quality: 80 })
-    .toBuffer();
-
-  const fileName = `${directory}/${uuidv4()}.jpeg`;
-
-  const params = {
-    Bucket: process.env.S3_BUCKET_NAME,
-    Key: fileName,
-    Body: compressedImage,
-    ContentType: 'image/jpeg',
-  };
+  logger.info(`uploadImage called with directory=${directory}, mimeType=${mimeType}, bufferSize=${fileBuffer?.length}`);
 
   try {
+    // Compress and resize the image using Sharp
+    const compressedImage = await sharp(fileBuffer)
+      .resize({ width: 800, withoutEnlargement: true })
+      .toFormat('jpeg', { quality: 80 })
+      .toBuffer();
+
+    logger.info(`Image compressed: originalSize=${fileBuffer.length} bytes, compressedSize=${compressedImage.length} bytes`);
+
+    const fileName = `${directory}/${uuidv4()}.jpeg`;
+
+    const params = {
+      Bucket: process.env.S3_BUCKET_NAME,
+      Key: fileName,
+      Body: compressedImage,
+      ContentType: 'image/jpeg',
+      ACL: 'public-read', // Optional: make the file publicly readable
+    };
+
+    logger.info(`Uploading image to S3: Bucket=${params.Bucket}, Key=${params.Key}`);
+
     const data = await s3.upload(params).promise();
     logger.info(`Image uploaded successfully to ${data.Location}`);
+
     return data.Location;
   } catch (error) {
     logger.error('Error uploading image to S3:', error);
@@ -43,6 +51,8 @@ const uploadImage = async (fileBuffer, mimeType, directory) => {
  * @param {string} imageUrl - The URL of the image to delete.
  */
 const deleteImage = async (imageUrl) => {
+  logger.info(`deleteImage called with imageUrl=${imageUrl}`);
+
   try {
     const url = new URL(imageUrl);
     const key = decodeURIComponent(url.pathname.substring(1)); // Remove leading '/'
@@ -52,8 +62,10 @@ const deleteImage = async (imageUrl) => {
       Key: key,
     };
 
+    logger.info(`Deleting image from S3: Bucket=${params.Bucket}, Key=${params.Key}`);
+
     await s3.deleteObject(params).promise();
-    logger.info(`Image deleted successfully from ${key}`);
+    logger.info(`Image deleted successfully from ${params.Key}`);
   } catch (error) {
     logger.error('Error deleting image from S3:', error);
     throw new Error('Error deleting image');

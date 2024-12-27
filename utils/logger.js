@@ -1,4 +1,5 @@
-// utils/logger.js
+// utils\logger.js
+
 // Utility to log messages to different log files based on log level
 
 const fs = require('fs');
@@ -15,10 +16,11 @@ const errorLog = fs.createWriteStream(path.join(logsDir, 'error.log'), { flags: 
 const accessLog = fs.createWriteStream(path.join(logsDir, 'access.log'), { flags: 'a' });
 const warnLog = fs.createWriteStream(path.join(logsDir, 'warn.log'), { flags: 'a' });
 
+// Simple logging levels: info, warn, error
 const logger = {
-    error: (message, error) => {
+    error: (message, metadata = {}) => {
         const timestamp = new Date().toISOString();
-        const logMessage = `${timestamp} ERROR: ${message} ${error?.stack || ''}\n`;
+        const logMessage = `${timestamp} ERROR: ${message} ${JSON.stringify(metadata)}\n`;
         errorLog.write(logMessage);
         console.error(logMessage);
     },
