@@ -31,7 +31,6 @@ const uploadImage = async (fileBuffer, mimeType, directory) => {
       Key: fileName,
       Body: compressedImage,
       ContentType: 'image/jpeg',
-      ACL: 'public-read', // Optional: make the file publicly readable
     };
 
     logger.info(`Uploading image to S3: Bucket=${params.Bucket}, Key=${params.Key}`);
