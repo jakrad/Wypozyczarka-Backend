@@ -351,7 +351,7 @@ router.get('/me', auth, async (req, res) => {
 
   try {
     const user = await User.findByPk(userId, {
-      attributes: ['id', 'email', 'name', 'phoneNumber', 'profileImage', 'role', 'createdAt', 'updatedAt']
+      attributes: ['id', 'email', 'name', 'phoneNumber', 'profileImage', 'role', 'createdAt', 'updatedAt', 'lastLogin']
     });
 
     if (!user) {
@@ -673,7 +673,7 @@ router.get('/:id', auth, async (req, res) => {
 
   try {
     const user = await User.findByPk(userId, {
-      attributes: ['id', 'email', 'name', 'phoneNumber', 'profileImage', 'role', 'createdAt', 'updatedAt']
+      attributes: ['id', 'email', 'name', 'phoneNumber', 'profileImage', 'role', 'createdAt', 'updatedAt', 'lastLogin']
     });
 
     if (!user) {
