@@ -1,4 +1,4 @@
-// routes\users.js
+// routes/users.js
 
 const express = require('express');
 const router = express.Router();
@@ -8,8 +8,8 @@ const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
 const multer = require('multer');
-const { uploadImage, deleteImage } = require('../utils/s3'); // remove s3 from here
-const { s3 } = require('../utils/aws'); // add s3 from aws
+const { uploadImage, deleteImage } = require('../utils/s3'); // Removed s3 from here
+const { s3 } = require('../utils/aws'); // Added s3 from aws
 const { ValidationError } = require('../middleware/errorHandler');
 
 // Configure multer storage (in memory)
@@ -139,6 +139,9 @@ const upload = multer({
  *               type: string
  *               format: date-time
  *               example: "2023-06-01T12:00:00Z"
+ *             lastLogin:
+ *               type: integer
+ *               example: 1682582400000
  *     ErrorResponse:
  *       type: object
  *       properties:
@@ -218,6 +221,12 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Email już istnieje' });
     }
 
+    // Validate phone number format if provided
+    if (phoneNumber && !/^\+?[\d\s-]{8,}$/.test(phoneNumber)) {
+      throw new ValidationError('Nieprawidłowy format numeru telefonu');
+    }
+
+    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
@@ -232,8 +241,13 @@ router.post('/register', async (req, res) => {
     logger.info(`Użytkownik zarejestrowany pomyślnie: ${email} (ID: ${user.id})`);
     res.status(201).json({ message: 'Użytkownik zarejestrowany pomyślnie', userId: user.id });
   } catch (error) {
-    logger.error(`Błąd podczas rejestracji użytkownika: ${email}`, error);
-    res.status(500).json({ message: 'Błąd serwera' });
+    if (error instanceof ValidationError) {
+      logger.info(`Rejestracja nieudana - błąd walidacji: ${error.message}`);
+      res.status(400).json({ message: error.message });
+    } else {
+      logger.error(`Błąd podczas rejestracji użytkownika: ${email}`, error);
+      res.status(500).json({ message: 'Błąd serwera' });
+    }
   }
 });
 
@@ -289,7 +303,7 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // **Update `lastLogin` Field**
+    // Update `lastLogin` Field
     user.lastLogin = Date.now(); // Current timestamp in milliseconds
     await user.save();
 
@@ -572,6 +586,11 @@ router.put('/me', auth, async (req, res) => {
       return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
     }
 
+    // Validate phone number format if provided
+    if (phoneNumber && !/^\+?[\d\s-]{8,}$/.test(phoneNumber)) {
+      throw new ValidationError('Nieprawidłowy format numeru telefonu');
+    }
+
     user.name = name || user.name;
     user.phoneNumber = phoneNumber || user.phoneNumber;
     // Removed profileImage update from here
@@ -580,8 +599,229 @@ router.put('/me', auth, async (req, res) => {
     logger.info(`Pomyślnie zaktualizowano profil użytkownika ID: ${userId}`);
     res.json({ message: 'Dane użytkownika zaktualizowane pomyślnie', user });
   } catch (error) {
-    logger.error(`Błąd podczas aktualizacji profilu użytkownika ID: ${userId}`, error);
-    res.status(500).json({ message: 'Błąd serwera' });
+    if (error instanceof ValidationError) {
+      logger.info(`Aktualizacja profilu nieudana - błąd walidacji: ${error.message}`);
+      res.status(400).json({ message: error.message });
+    } else {
+      logger.error(`Błąd podczas aktualizacji profilu użytkownika ID: ${userId}`, error);
+      res.status(500).json({ message: 'Błąd serwera' });
+    }
+  }
+});
+
+/**
+ * @swagger
+ * /users/me/change-email:
+ *   put:
+ *     summary: Change logged-in user's email
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       description: New email and current password for verification
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - newEmail
+ *               - currentPassword
+ *             properties:
+ *               newEmail:
+ *                 type: string
+ *                 format: email
+ *                 description: New email address
+ *                 example: new.email@example.com
+ *               currentPassword:
+ *                 type: string
+ *                 description: Current password for verification
+ *                 example: StrongPassword123
+ *     responses:
+ *       200:
+ *         description: Email updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Email zaktualizowany pomyślnie
+ *                 newEmail:
+ *                   type: string
+ *                   format: email
+ *                   example: new.email@example.com
+ *       400:
+ *         description: Bad Request - Invalid input or email already in use
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized - Incorrect current password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ */
+router.put('/me/change-email', auth, async (req, res) => {
+  const userId = req.user.userId;
+  const { newEmail, currentPassword } = req.body;
+  logger.info(`Próba zmiany emaila dla użytkownika ID: ${userId}`);
+
+  try {
+    // Validate input presence
+    if (!newEmail || !currentPassword) {
+      throw new ValidationError('Nowy email i aktualne hasło są wymagane');
+    }
+
+    // Validate new email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      throw new ValidationError('Nieprawidłowy format nowego emaila');
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      logger.info(`Nie znaleziono użytkownika ID: ${userId}`);
+      return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      logger.info(`Nieprawidłowe aktualne hasło dla użytkownika ID: ${userId}`);
+      return res.status(401).json({ message: 'Nieprawidłowe aktualne hasło' });
+    }
+
+    // Check if new email is already in use
+    const existingUser = await User.findOne({ where: { email: newEmail } });
+    if (existingUser && existingUser.id !== userId) {
+      logger.info(`Zmiana emaila nieudana - email już w użyciu: ${newEmail}`);
+      return res.status(400).json({ message: 'Nowy email jest już w użyciu' });
+    }
+
+    // Update email
+    user.email = newEmail;
+    await user.save();
+    logger.info(`Email użytkownika ID: ${userId} zaktualizowany na: ${newEmail}`);
+
+    res.json({ message: 'Email zaktualizowany pomyślnie', newEmail });
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      logger.info(`Zmiana emaila nieudana - błąd walidacji: ${error.message}`);
+      res.status(400).json({ message: error.message });
+    } else {
+      logger.error(`Błąd podczas zmiany emaila użytkownika ID: ${userId}`, error);
+      res.status(500).json({ message: 'Błąd serwera' });
+    }
+  }
+});
+
+/**
+ * @swagger
+ * /users/me/change-password:
+ *   put:
+ *     summary: Change logged-in user's password
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       description: Current password and new password for update
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 description: Current password for verification
+ *                 example: StrongPassword123
+ *               newPassword:
+ *                 type: string
+ *                 description: New password to set
+ *                 example: NewStrongPassword456!
+ *     responses:
+ *       200:
+ *         description: Password updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Hasło zaktualizowane pomyślnie
+ *       400:
+ *         description: Bad Request - Invalid input or weak password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized - Incorrect current password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ */
+router.put('/me/change-password', auth, async (req, res) => {
+  const userId = req.user.userId;
+  const { currentPassword, newPassword } = req.body;
+  logger.info(`Próba zmiany hasła dla użytkownika ID: ${userId}`);
+
+  try {
+    // Validate input presence
+    if (!currentPassword || !newPassword) {
+      throw new ValidationError('Aktualne hasło i nowe hasło są wymagane');
+    }
+
+    // Validate new password strength
+    // Example: Minimum 8 characters, at least one uppercase, one lowercase, one number, and one special character
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?#&^_-])[A-Za-z\d@$!%*?#&^_-]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      throw new ValidationError('Nowe hasło musi zawierać co najmniej 8 znaków, w tym jedną dużą literę, jedną małą literę, jedną cyfrę i jeden znak specjalny');
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      logger.info(`Nie znaleziono użytkownika ID: ${userId}`);
+      return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      logger.info(`Nieprawidłowe aktualne hasło dla użytkownika ID: ${userId}`);
+      return res.status(401).json({ message: 'Nieprawidłowe aktualne hasło' });
+    }
+
+    // Hash the new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    user.password = hashedNewPassword;
+    await user.save();
+    logger.info(`Hasło użytkownika ID: ${userId} zostało zaktualizowane`);
+
+    res.json({ message: 'Hasło zaktualizowane pomyślnie' });
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      logger.info(`Zmiana hasła nieudana - błąd walidacji: ${error.message}`);
+      res.status(400).json({ message: error.message });
+    } else {
+      logger.error(`Błąd podczas zmiany hasła użytkownika ID: ${userId}`, error);
+      res.status(500).json({ message: 'Błąd serwera' });
+    }
   }
 });
 
@@ -599,7 +839,11 @@ router.put('/me', auth, async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/DeleteProfileImageResponse'
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Konto użytkownika usunięte pomyślnie
  *       404:
  *         description: User not found
  *         content:
