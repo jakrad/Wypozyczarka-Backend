@@ -1,7 +1,7 @@
 // routes/favorites.js
 const express = require('express');
 const router = express.Router();
-const { Favorite, User, Tool } = require('../models');
+const { Favorite, User, Tool, ToolImage } = require('../models'); // Dodano ToolImage
 const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
 const { NotFoundError, AuthorizationError, ConflictError } = require('../middleware/errorHandler');
@@ -109,7 +109,14 @@ router.get('/', auth, async (req, res) => {
   try {
     const favorites = await Favorite.findAll({
       where: { userId },
-      include: [Tool],
+      include: [{
+        model: Tool,
+        as: 'Tool', // Upewnij się, że alias jest poprawny
+        include: [{
+          model: ToolImage,
+          as: 'ToolImages' // Dołączenie ToolImages
+        }]
+      }],
     });
     logger.info(`Pomyślnie pobrano ulubione dla użytkownika ID: ${userId}`);
     res.json(favorites);
