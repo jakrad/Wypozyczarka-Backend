@@ -1,3 +1,5 @@
+// routes\users.js
+
 const express = require('express');
 const router = express.Router();
 const { User } = require('../models');
@@ -137,10 +139,6 @@ const upload = multer({
  *               type: string
  *               format: date-time
  *               example: "2023-06-01T12:00:00Z"
- *             lastLogin:
- *               type: integer
- *               description: Unix timestamp in milliseconds
- *               example: 1672531200000
  *     ErrorResponse:
  *       type: object
  *       properties:
@@ -525,7 +523,7 @@ router.delete('/me/profile-image', auth, async (req, res) => {
  *     security:
  *       - BearerAuth: []
  *     requestBody:
- *       description: User data to update (name, phoneNumber, email, password)
+ *       description: User data to update (excluding profileImage)
  *       required: true
  *       content:
  *         application/json:
@@ -540,15 +538,6 @@ router.delete('/me/profile-image', auth, async (req, res) => {
  *                 type: string
  *                 description: Updated phone number
  *                 example: +987654321
- *               email:
- *                 type: string
- *                 format: email
- *                 description: Updated email address
- *                 example: jan.kowalski@example.com
- *               password:
- *                 type: string
- *                 description: New password (minimum 8 characters)
- *                 example: NewStrongPassword123
  *     responses:
  *       200:
  *         description: User data updated successfully
@@ -562,12 +551,6 @@ router.delete('/me/profile-image', auth, async (req, res) => {
  *                   example: Dane użytkownika zaktualizowane pomyślnie
  *                 user:
  *                   $ref: '#/components/schemas/User'
- *       400:
- *         description: Bad Request - Email already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: User not found
  *         content:
@@ -579,7 +562,7 @@ router.delete('/me/profile-image', auth, async (req, res) => {
  */
 router.put('/me', auth, async (req, res) => {
   const userId = req.user.userId;
-  const { name, phoneNumber, email, password } = req.body;
+  const { name, phoneNumber } = req.body; // Removed profileImage from payload
   logger.info(`Próba aktualizacji profilu użytkownika ID: ${userId}`);
 
   try {
@@ -589,45 +572,66 @@ router.put('/me', auth, async (req, res) => {
       return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
     }
 
-    // Update name and phoneNumber
     user.name = name || user.name;
     user.phoneNumber = phoneNumber || user.phoneNumber;
-
-    // Update email if provided and different
-    if (email && email !== user.email) {
-      const existingUser = await User.findOne({ where: { email } });
-      if (existingUser) {
-        logger.info(`Aktualizacja nieudana - email już istnieje: ${email}`);
-        return res.status(400).json({ message: 'Email już istnieje' });
-      }
-      user.email = email;
-    }
-
-    // Update password if provided
-    if (password) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      user.password = hashedPassword;
-    }
+    // Removed profileImage update from here
 
     await user.save();
     logger.info(`Pomyślnie zaktualizowano profil użytkownika ID: ${userId}`);
-
-    // Prepare updated user data to send back (excluding password)
-    const updatedUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phoneNumber: user.phoneNumber,
-      profileImage: user.profileImage,
-      role: user.role,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      lastLogin: user.lastLogin
-    };
-
-    res.json({ message: 'Dane użytkownika zaktualizowane pomyślnie', user: updatedUser });
+    res.json({ message: 'Dane użytkownika zaktualizowane pomyślnie', user });
   } catch (error) {
     logger.error(`Błąd podczas aktualizacji profilu użytkownika ID: ${userId}`, error);
+    res.status(500).json({ message: 'Błąd serwera' });
+  }
+});
+
+/**
+ * @swagger
+ * /users/me:
+ *   delete:
+ *     summary: Delete the logged-in user's account
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User account deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DeleteProfileImageResponse'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ */
+router.delete('/me', auth, async (req, res) => {
+  const userId = req.user.userId;
+  logger.info(`Próba usunięcia konta użytkownika ID: ${userId}`);
+
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      logger.info(`Nie znaleziono użytkownika do usunięcia ID: ${userId}`);
+      return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+    }
+
+    // Optional: Delete profile image from S3 if it exists
+    if (user.profileImage) {
+      logger.info(`Deleting profile image from S3: ${user.profileImage} for userID = ${userId}`);
+      await deleteImage(user.profileImage);
+      logger.info(`Deleted profile image from S3 for userID = ${userId}`);
+    }
+
+    await user.destroy();
+    logger.info(`Pomyślnie usunięto konto użytkownika ID: ${userId}`);
+    res.json({ message: 'Konto użytkownika usunięte pomyślnie' });
+  } catch (error) {
+    logger.error(`Błąd podczas usuwania konta użytkownika ID: ${userId}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
