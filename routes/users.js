@@ -302,7 +302,8 @@ router.post('/login', async (req, res) => {
       role: user.role,
       phoneNumber: user.phoneNumber,
       createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      updatedAt: user.updatedAt,
+      lastLogin: user.lastLogin // Include `lastLogin` in the response
     };
 
     logger.info(`Użytkownik zalogowany pomyślnie: ${email} (ID: ${user.id})`);
