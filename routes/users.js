@@ -289,6 +289,10 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    // **Update `lastLogin` Field**
+    user.lastLogin = Date.now(); // Current timestamp in milliseconds
+    await user.save();
+
     // Prepare user data to send (excluding sensitive information)
     const userData = {
       id: user.id,
