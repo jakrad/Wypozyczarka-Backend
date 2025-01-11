@@ -27,15 +27,26 @@ const Tool = sequelize.define('Tool', {
     type: DataTypes.FLOAT,
     allowNull: false
   },
-  location: {
-    type: DataTypes.STRING
+  latitude: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    validate: {
+      min: -90,
+      max: 90
+    }
+  },
+  longitude: {
+    type: DataTypes.FLOAT,
+    allowNull: false, 
+    validate: {
+      min: -180,
+      max: 180
+    }
   }
 }, {
   tableName: 'tool',
   timestamps: true,
   underscored: true
 });
-
-// Relacje w index.js
 
 module.exports = Tool;

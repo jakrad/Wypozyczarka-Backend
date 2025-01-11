@@ -67,7 +67,7 @@ const upload = multer({
  *         description: Server Error
  */
 router.post('/', auth, async (req, res) => {
-  const { name, description, category, pricePerDay, location } = req.body;
+  const { name, description, category, pricePerDay, latitude, longitude } = req.body;
   const userId = req.user.userId;
 
   logger.info(`Dodawanie narzędzia dla użytkownika ID: ${userId}`);
@@ -87,7 +87,8 @@ router.post('/', auth, async (req, res) => {
       description,
       category,
       pricePerDay,
-      location
+      latitude,
+      longitude
     });
 
     logger.info(`Narzędzie dodane pomyślnie: ToolID=${tool.id} przez UserID=${userId}`);
@@ -273,7 +274,7 @@ router.get('/:id', async (req, res) => {
  */
 router.put('/:id', auth, async (req, res) => {
   const toolId = req.params.id;
-  const { name, description, category, pricePerDay, location } = req.body;
+  const { name, description, category, pricePerDay, latitude, longitude } = req.body;
   const userId = req.user.userId;
 
   logger.info(`Aktualizacja narzędzia ID: ${toolId} dla użytkownika ID: ${userId}`);
@@ -296,7 +297,8 @@ router.put('/:id', auth, async (req, res) => {
     tool.description = description || tool.description;
     tool.category = category || tool.category;
     tool.pricePerDay = pricePerDay !== undefined ? pricePerDay : tool.pricePerDay;
-    tool.location = location || tool.location;
+    tool.latitude = latitude !== undefined ? latitude : tool.latitude;
+    tool.longitude = longitude !== undefined ? longitude : tool.longitude;
 
     await tool.save();
 
@@ -665,3 +667,33 @@ router.post('/:toolId/images', auth, upload.array('images', 3), async (req, res)
 });
 
 module.exports = router;
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     AddToolRequest:
+ *       type: object
+ *       required:
+ *         - name
+ *         - pricePerDay
+ *         - latitude
+ *         - longitude
+ *       properties:
+ *         name:
+ *           type: string
+ *         description:
+ *           type: string
+ *         category:
+ *           type: string
+ *         pricePerDay:
+ *           type: number
+ *         latitude:
+ *           type: number
+ *           minimum: -90
+ *           maximum: 90
+ *         longitude:
+ *           type: number
+ *           minimum: -180
+ *           maximum: 180
+ */
