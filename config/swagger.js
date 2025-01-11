@@ -1,4 +1,4 @@
-// swagger.js
+// config/swagger.js
 const swaggerJSDoc = require('swagger-jsdoc');
 
 const options = {
@@ -73,6 +73,12 @@ const options = {
               format: 'date-time',
               description: 'Timestamp when the user was last updated',
               example: '2024-04-27T10:20:30Z',
+            },
+            lastLogin: {
+              type: 'integer',
+              description: 'Timestamp of the last user login in milliseconds',
+              example: 1682582400000,
+              nullable: true,
             },
           },
         },
@@ -252,6 +258,16 @@ const options = {
               description: 'Location where the tool is available',
               example: 'Warsaw',
             },
+            latitude: {
+              type: 'number',
+              description: 'Latitude of the tool location',
+              example: 52.2297,
+            },
+            longitude: {
+              type: 'number',
+              description: 'Longitude of the tool location',
+              example: 21.0122,
+            },
             createdAt: {
               type: 'string',
               format: 'date-time',
@@ -277,7 +293,7 @@ const options = {
         },
         AddToolRequest: {
           type: 'object',
-          required: ['name', 'description', 'category', 'pricePerDay', 'location'],
+          required: ['name', 'description', 'category', 'pricePerDay', 'latitude', 'longitude'],
           properties: {
             name: {
               type: 'string',
@@ -300,10 +316,15 @@ const options = {
               description: 'Rental price per day',
               example: 10.5,
             },
-            location: {
-              type: 'string',
-              description: 'Location where the tool is available',
-              example: 'Warsaw',
+            latitude: {
+              type: 'number',
+              description: 'Latitude of the tool location',
+              example: 52.2297,
+            },
+            longitude: {
+              type: 'number',
+              description: 'Longitude of the tool location',
+              example: 21.0122,
             },
           },
         },
@@ -344,10 +365,15 @@ const options = {
               description: 'Rental price per day',
               example: 12.0,
             },
-            location: {
-              type: 'string',
-              description: 'Location where the tool is available',
-              example: 'Krakow',
+            latitude: {
+              type: 'number',
+              description: 'Latitude of the tool location',
+              example: 50.0647,
+            },
+            longitude: {
+              type: 'number',
+              description: 'Longitude of the tool location',
+              example: 19.9450,
             },
           },
         },
@@ -535,6 +561,67 @@ const options = {
             message: {
               type: 'string',
               example: 'Profile image deleted successfully',
+            },
+          },
+        },
+
+        // Favorite Schemas
+        AddFavoriteRequest: {
+          type: 'object',
+          required: ['toolId'],
+          properties: {
+            toolId: {
+              type: 'integer',
+              description: 'ID of the tool to add to favorites',
+              example: 456,
+            },
+          },
+        },
+        AddFavoriteResponse: {
+          type: 'object',
+          properties: {
+            message: {
+              type: 'string',
+              example: 'Ulubione dodane pomyślnie',
+            },
+            favoriteId: {
+              type: 'integer',
+              example: 789,
+            },
+          },
+        },
+        Favorite: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'integer',
+              description: 'Unique identifier for the favorite',
+              example: 789,
+            },
+            userId: {
+              type: 'integer',
+              description: 'ID of the user who favorited the tool',
+              example: 123,
+            },
+            toolId: {
+              type: 'integer',
+              description: 'ID of the tool that was favorited',
+              example: 456,
+            },
+            Tool: {
+              $ref: '#/components/schemas/Tool',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Timestamp when the favorite was created',
+              example: '2024-04-27T10:20:30Z',
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Timestamp when the favorite was last updated',
+              example: '2024-04-27T10:20:30Z',
             },
           },
         },

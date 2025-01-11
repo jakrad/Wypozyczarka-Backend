@@ -1,4 +1,4 @@
-// routes\tools.js
+// routes/tools.js
 
 const express = require('express');
 const router = express.Router();
@@ -58,7 +58,7 @@ const upload = multer({
  *             schema:
  *               $ref: '#/components/schemas/AddToolResponse'
  *       400:
- *         description: Bad Request - User does not exist
+ *         description: Bad Request - User does not exist or validation error
  *         content:
  *           application/json:
  *             schema:
@@ -116,7 +116,7 @@ router.post('/', auth, async (req, res) => {
  *         schema:
  *           type: string
  *           enum: [name_asc, name_desc, price_asc, price_desc, createdAt_asc, createdAt_desc]
- *         description: Sort tools by name or price or creation date
+ *         description: Sort tools by name, price, or creation date
  *     responses:
  *       200:
  *         description: List of tools
@@ -453,15 +453,87 @@ router.get('/:toolId/images', async (req, res) => {
  *         schema:
  *           type: integer
  *         description: ID of the user whose tools to retrieve
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter tools by category
+ *       - in: query
+ *         name: minPrice
+ *         schema:
+ *           type: number
+ *           format: float
+ *         description: Minimum price per day
+ *       - in: query
+ *         name: maxPrice
+ *         schema:
+ *           type: number
+ *           format: float
+ *         description: Maximum price per day
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search tools by name
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [createdAt, pricePerDay, name]
+ *         description: Field to sort by
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [ASC, DESC]
+ *         description: Sort order
  *     responses:
  *       200:
  *         description: List of tools by the user
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Tool'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tools:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Tool'
+ *                 filters:
+ *                   type: object
+ *                   properties:
+ *                     category:
+ *                       type: string
+ *                       example: Construction
+ *                     minPrice:
+ *                       type: number
+ *                       format: float
+ *                       example: 10.0
+ *                     maxPrice:
+ *                       type: number
+ *                       format: float
+ *                       example: 50.0
+ *                     search:
+ *                       type: string
+ *                       example: Hammer
+ *                     sortBy:
+ *                       type: string
+ *                       example: pricePerDay
+ *                     order:
+ *                       type: string
+ *                       example: DESC
+ *       400:
+ *         description: Bad Request - Invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: User not found
  *         content:
@@ -605,9 +677,17 @@ router.get('/user/:userId', async (req, res) => {
  *               items:
  *                 $ref: '#/components/schemas/ToolImage'
  *       400:
- *         description: Tool not found or no images provided
+ *         description: Bad Request - Tool not found or no images provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
  *         description: Forbidden - The tool doesn’t belong to the logged user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
  */

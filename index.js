@@ -45,6 +45,10 @@ app.get('/', (req, res) => {
   res.send('Server is running! Visit /api-docs for API documentation.');
 });
 
+// Error Handling Middleware
+const { errorHandler } = require('./middleware/errorHandler');
+app.use(errorHandler);
+
 // Initialize models and start the HTTPS server
 initModels()
   .then(() => {

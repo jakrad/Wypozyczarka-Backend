@@ -27,7 +27,7 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
-        len: [8, 100], // min 8 znaków
+        len: [8, 100], // min 8 characters
       },
     },
     profileImage: {
@@ -42,7 +42,7 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
-        is: /^\+?[\d\s-]{8,}$/, // format numeru telefonu
+        is: /^\+?[\d\s-]{8,}$/, // phone number format
       },
     },
     lastLogin: {
@@ -57,6 +57,6 @@ const User = sequelize.define(
   }
 );
 
-// Relacje w index.js
+// Relationships are defined in index.js
 
 module.exports = User;

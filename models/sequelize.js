@@ -2,18 +2,18 @@
 
 const { Sequelize } = require('sequelize');
 const logger = require('../utils/logger');
-require('dotenv').config(); // Ładowanie zmiennych środowiskowych z pliku .env
+require('dotenv').config(); // Load environment variables from .env file
 
-// Walidacja wymaganych zmiennych środowiskowych
-const requiredEnvs = ['DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'DB_HOST', 'NODE_ENV'];
+// Validate required environment variables
+const requiredEnvs = ['DB_NAME', 'DB_USERNAME', 'DB_PASSWORD', 'DB_HOST', 'NODE_ENV', 'JWT_SECRET', 'AWS_REGION', 'S3_BUCKET_NAME'];
 const missingEnvs = requiredEnvs.filter(env => !process.env[env]);
 
 if (missingEnvs.length) {
-  logger.error(`Brak wymaganych zmiennych środowiskowych: ${missingEnvs.join(', ')}`);
+  logger.error(`Missing required environment variables: ${missingEnvs.join(', ')}`);
   process.exit(1);
 }
 
-// Inicjalizacja Sequelize bez opcji 'sync'
+// Initialize Sequelize without the 'sync' option
 const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USERNAME, process.env.DB_PASSWORD, {
   host: process.env.DB_HOST,
   port: process.env.DB_PORT || 3306,
@@ -45,6 +45,6 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USERNAME, pr
   },
 });
 
-// Usunięcie funkcji initDatabase i wywołania sequelize.sync()
+// Removed initDatabase function and sequelize.sync() call
 
 module.exports = sequelize;

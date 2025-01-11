@@ -31,7 +31,7 @@ const errorHandler = (err, req, res, next) => {
 
   const errorContext = getErrorContext(req);
 
-  logger.error('Błąd aplikacji:', {
+  logger.error('Application error:', {
     message: err.message,
     ...errorContext
   });

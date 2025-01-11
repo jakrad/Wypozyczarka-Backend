@@ -6,7 +6,7 @@ const { Review, User } = require('../models');
 const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
-const { ValidationError } = require('../middleware/errorHandler');
+const { ValidationError, NotFoundError } = require('../middleware/errorHandler');
 
 /**
  * @swagger
@@ -45,10 +45,6 @@ const { ValidationError } = require('../middleware/errorHandler');
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/', auth, async (req, res) => {
   const { reviewedUserId, rating, comment } = req.body;
@@ -65,10 +61,10 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ message: 'Nieprawidłowy użytkownik' });
     }
 
-    // Sprawdź czy recenzja już istnieje
+    // Check if review already exists
     const existingReview = await Review.findOne({ where: { reviewerUserId, reviewedUserId } });
     if (existingReview) {
-      logger.info(`Recenzja już istnieje: recenzent ${reviewerUserId}, oceniany ${reviewedUserId}`);
+      logger.info(`Review already exists: reviewer ${reviewerUserId}, reviewed ${reviewedUserId}`);
       return res.status(400).json({ message: 'Recenzja już istnieje' });
     }
 
@@ -79,10 +75,10 @@ router.post('/', auth, async (req, res) => {
       comment
     });
 
-    logger.info(`Pomyślnie dodano recenzję ID: ${review.id}`);
+    logger.info(`Successfully added review ID: ${review.id}`);
     res.status(201).json({ message: 'Recenzja dodana pomyślnie', reviewId: review.id });
   } catch (error) {
-    logger.error(`Błąd podczas dodawania recenzji: ${error.message}`, error);
+    logger.error(`Error adding review: ${error.message}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -110,14 +106,10 @@ router.post('/', auth, async (req, res) => {
  *                 $ref: '#/components/schemas/Review'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/', async (req, res) => {
   const { reviewedUserId } = req.query;
-  logger.info(`Pobieranie recenzji${reviewedUserId ? ` dla użytkownika ID: ${reviewedUserId}` : ''}`);
+  logger.info(`Fetching reviews${reviewedUserId ? ` for user ID: ${reviewedUserId}` : ''}`);
 
   try {
     if (reviewedUserId) {
@@ -135,9 +127,9 @@ router.get('/', async (req, res) => {
       });
       res.json(reviews);
     }
-    logger.info('Pomyślnie pobrano listę recenzji');
+    logger.info('Successfully fetched reviews list');
   } catch (error) {
-    logger.error(`Błąd podczas pobierania recenzji: ${error.message}`, error);
+    logger.error(`Error fetching reviews: ${error.message}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -191,47 +183,43 @@ router.get('/', async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.put('/:id', auth, async (req, res) => {
   const reviewId = req.params.id;
   const { rating, comment } = req.body;
   const reviewerUserId = req.user.userId;
 
-  logger.info(`Próba aktualizacji recenzji ID: ${reviewId}`);
+  logger.info(`Attempting to update review ID: ${reviewId}`);
 
   try {
     const review = await Review.findByPk(reviewId);
     if (!review) {
-      logger.info(`Nie znaleziono recenzji ID: ${reviewId}`);
+      logger.info(`Review not found ID: ${reviewId}`);
       return res.status(404).json({ message: 'Recenzja nie znaleziona' });
     }
 
-    // Sprawdź czy recenzja należy do zalogowanego użytkownika
+    // Check if the review belongs to the logged-in user
     if (review.reviewerUserId !== reviewerUserId) {
-      logger.info(`Brak uprawnień do aktualizacji recenzji ID: ${reviewId}`);
+      logger.info(`Unauthorized attempt to update review ID: ${reviewId}`);
       return res.status(403).json({ message: 'Brak uprawnień do aktualizacji tej recenzji' });
     }
 
-    // Aktualizacja pola rating i comment jeśli podane
+    // Update rating and comment if provided
     if (rating !== undefined) {
       review.rating = rating;
-      logger.info(`Zaktualizowano rating recenzji ID: ${reviewId} na: ${rating}`);
+      logger.info(`Updated rating for review ID: ${reviewId} to: ${rating}`);
     }
     if (comment !== undefined) {
       review.comment = comment;
-      logger.info(`Zaktualizowano komentarz recenzji ID: ${reviewId} na: "${comment}"`);
+      logger.info(`Updated comment for review ID: ${reviewId} to: "${comment}"`);
     }
 
     await review.save();
 
-    logger.info(`Pomyślnie zaktualizowano recenzję ID: ${reviewId}`);
+    logger.info(`Successfully updated review ID: ${reviewId}`);
     res.json({ message: 'Recenzja zaktualizowana pomyślnie', review });
   } catch (error) {
-    logger.error(`Błąd podczas aktualizacji recenzji ID: ${reviewId}`, error);
+    logger.error(`Error updating review ID: ${reviewId}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -281,27 +269,27 @@ router.delete('/:id', auth, async (req, res) => {
   const reviewId = req.params.id;
   const reviewerUserId = req.user.userId;
 
-  logger.info(`Próba usunięcia recenzji ID: ${reviewId}`);
+  logger.info(`Attempting to delete review ID: ${reviewId}`);
 
   try {
     const review = await Review.findByPk(reviewId);
     if (!review) {
-      logger.info(`Nie znaleziono recenzji ID: ${reviewId}`);
+      logger.info(`Review not found ID: ${reviewId}`);
       return res.status(404).json({ message: 'Recenzja nie znaleziona' });
     }
 
-    // Sprawdź czy recenzja należy do zalogowanego użytkownika
+    // Check if the review belongs to the logged-in user
     if (review.reviewerUserId !== reviewerUserId) {
-      logger.info(`Brak uprawnień do usunięcia recenzji ID: ${reviewId}`);
+      logger.info(`Unauthorized attempt to delete review ID: ${reviewId}`);
       return res.status(403).json({ message: 'Brak uprawnień do usunięcia tej recenzji' });
     }
 
     await review.destroy();
 
-    logger.info(`Pomyślnie usunięto recenzję ID: ${reviewId}`);
+    logger.info(`Successfully deleted review ID: ${reviewId}`);
     res.json({ message: 'Recenzja usunięta pomyślnie' });
   } catch (error) {
-    logger.error(`Błąd podczas usuwania recenzji ID: ${reviewId}`, error);
+    logger.error(`Error deleting review ID: ${reviewId}`, error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
@@ -325,47 +313,85 @@ router.delete('/:id', auth, async (req, res) => {
  *           type: integer
  *           minimum: 1
  *           maximum: 5
- *         description: Minimalna ocena recenzji
+ *         description: Minimal rating of reviews
  *       - in: query
  *         name: maxRating
  *         schema:
  *           type: integer
  *           minimum: 1
  *           maximum: 5
- *         description: Maksymalna ocena recenzji
+ *         description: Maximum rating of reviews
  *       - in: query
  *         name: startDate
  *         schema:
  *           type: string
  *           format: date
- *         description: Data początkowa recenzji
+ *         description: Start date for reviews
  *       - in: query
  *         name: endDate
  *         schema:
  *           type: string
  *           format: date
- *         description: Data końcowa recenzji
+ *         description: End date for reviews
  *       - in: query
  *         name: sortBy
  *         schema:
  *           type: string
  *           enum: [rating, createdAt]
- *         description: Pole do sortowania recenzji
+ *         description: Field to sort reviews by
  *       - in: query
  *         name: order
  *         schema:
  *           type: string
  *           enum: [ASC, DESC]
- *         description: Kolejność sortowania recenzji
+ *         description: Order of sorting
  *     responses:
  *       200:
  *         description: List of reviews for the user
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Review'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reviews:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Review'
+ *                 filters:
+ *                   type: object
+ *                   properties:
+ *                     minRating:
+ *                       type: integer
+ *                       example: 3
+ *                     maxRating:
+ *                       type: integer
+ *                       example: 5
+ *                     startDate:
+ *                       type: string
+ *                       format: date
+ *                       example: '2023-01-01'
+ *                     endDate:
+ *                       type: string
+ *                       format: date
+ *                       example: '2023-12-31'
+ *                     sortBy:
+ *                       type: string
+ *                       example: rating
+ *                     order:
+ *                       type: string
+ *                       example: DESC
+ *       400:
+ *         description: Bad Request - Invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: User not found
  *         content:
@@ -387,7 +413,7 @@ router.get('/reviewed/:userId', async (req, res) => {
   } = req.query;
 
   try {
-    // Walidacja parametrów
+    // Validate parameters
     if (minRating && (isNaN(minRating) || minRating < 1 || minRating > 5)) {
       throw new ValidationError('Nieprawidłowa wartość minRating (1-5)');
     }
@@ -395,7 +421,7 @@ router.get('/reviewed/:userId', async (req, res) => {
       throw new ValidationError('Nieprawidłowa wartość maxRating (1-5)');
     }
 
-    // Budowanie warunków filtrowania
+    // Build filtering conditions
     const whereClause = { reviewedUserId: userId };
     
     if (minRating || maxRating) {
@@ -434,6 +460,12 @@ router.get('/reviewed/:userId', async (req, res) => {
     if (error instanceof ValidationError) {
       logger.info(`Błąd walidacji: ${error.message}`);
       res.status(400).json({
+        status: 'error',
+        message: error.message
+      });
+    } else if (error instanceof NotFoundError) {
+      logger.info(`Nie znaleziono użytkownika ID: ${userId}`);
+      res.status(404).json({
         status: 'error',
         message: error.message
       });

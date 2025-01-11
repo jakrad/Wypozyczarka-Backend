@@ -41,6 +41,6 @@ const Review = sequelize.define('Review', {
   ]
 });
 
-// Relacje są definiowane w index.js
+// Relationships are defined in index.js
 
 module.exports = Review;

@@ -1,7 +1,8 @@
 // routes/favorites.js
+
 const express = require('express');
 const router = express.Router();
-const { Favorite, User, Tool, ToolImage } = require('../models'); // Dodano ToolImage
+const { Favorite, User, Tool, ToolImage } = require('../models'); // Added ToolImage
 const auth = require('../middleware/auth');
 const logger = require('../utils/logger');
 const { NotFoundError, AuthorizationError, ConflictError } = require('../middleware/errorHandler');
@@ -27,7 +28,14 @@ const { NotFoundError, AuthorizationError, ConflictError } = require('../middlew
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/AddFavoriteRequest'
+ *             type: object
+ *             required:
+ *               - toolId
+ *             properties:
+ *               toolId:
+ *                 type: integer
+ *                 description: ID of the tool to add to favorites
+ *                 example: 456
  *     responses:
  *       201:
  *         description: Favorite added successfully
@@ -41,12 +49,14 @@ const { NotFoundError, AuthorizationError, ConflictError } = require('../middlew
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Server Error
+ *       403:
+ *         description: Forbidden - Not authorized to add this favorite
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
  */
 router.post('/', auth, async (req, res) => {
   const { toolId } = req.body;
@@ -55,14 +65,14 @@ router.post('/', auth, async (req, res) => {
   logger.info(`Próba dodania narzędzia ID: ${toolId} do ulubionych użytkownika ID: ${userId}`);
 
   try {
-    // Sprawdź czy tool istnieje
+    // Check if tool exists
     const tool = await Tool.findByPk(toolId);
     if (!tool) {
       logger.info(`Narzędzie ID: ${toolId} nie istnieje`);
       return res.status(400).json({ message: 'Narzędzie nie istnieje' });
     }
 
-    // Sprawdź czy już jest w ulubionych
+    // Check if already in favorites
     const existingFavorite = await Favorite.findOne({ where: { userId, toolId } });
     if (existingFavorite) {
       logger.info(`Narzędzie ID: ${toolId} jest już w ulubionych użytkownika ID: ${userId}`);
@@ -95,12 +105,14 @@ router.post('/', auth, async (req, res) => {
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/Favorite'
- *       500:
- *         description: Server Error
+ *       403:
+ *         description: Forbidden - Not authorized to access favorites
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
  */
 router.get('/', auth, async (req, res) => {
   const userId = req.user.userId;
@@ -111,10 +123,10 @@ router.get('/', auth, async (req, res) => {
       where: { userId },
       include: [{
         model: Tool,
-        as: 'Tool', // Upewnij się, że alias jest poprawny
+        as: 'Tool', // Ensure the alias matches Sequelize associations
         include: [{
           model: ToolImage,
-          as: 'ToolImages' // Dołączenie ToolImages
+          as: 'ToolImages' // Include ToolImages
         }]
       }],
     });
@@ -149,9 +161,18 @@ router.get('/', auth, async (req, res) => {
  *             schema:
  *               type: object
  *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
  *                 message:
  *                   type: string
  *                   example: Ulubione usunięte pomyślnie
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     favoriteId:
+ *                       type: integer
+ *                       example: 789
  *       403:
  *         description: Forbidden - User does not have permission to delete this favorite
  *         content:
@@ -166,10 +187,6 @@ router.get('/', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server Error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete('/:id', auth, async (req, res) => {
   const favoriteId = req.params.id;

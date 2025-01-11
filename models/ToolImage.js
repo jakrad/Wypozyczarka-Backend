@@ -22,6 +22,6 @@ const ToolImage = sequelize.define('ToolImage', {
   underscored: true
 });
 
-// Relacje w index.js
+// Relationships are defined in index.js
 
 module.exports = ToolImage;

@@ -5,16 +5,25 @@ const logger = require('../utils/logger');
 module.exports = function (req, res, next) {
   const authHeader = req.header('Authorization');
   if (!authHeader) {
-    logger.info('Próba dostępu bez tokena autoryzacyjnego');
+    logger.info('Attempted access without authorization token');
     return res.status(401).json({ 
       status: 'error',
       message: 'Brak tokena, dostęp zabroniony' 
     });
   }
 
-  const token = authHeader.split(' ')[1];
+  const tokenParts = authHeader.split(' ');
+  if (tokenParts.length !== 2 || tokenParts[0] !== 'Bearer') {
+    logger.info('Attempted access with invalid token format');
+    return res.status(401).json({ 
+      status: 'error',
+      message: 'Nieprawidłowy format tokena' 
+    });
+  }
+
+  const token = tokenParts[1];
   if (!token) {
-    logger.info('Próba dostępu z nieprawidłowym formatem tokena');
+    logger.info('Attempted access with missing token');
     return res.status(401).json({ 
       status: 'error',
       message: 'Nieprawidłowy format tokena' 
@@ -23,7 +32,7 @@ module.exports = function (req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'TwojSekretnyToken');
-    logger.info(`Pomyślna weryfikacja tokena dla użytkownika ID: ${decoded.userId}`);
+    logger.info(`Successful token verification for user ID: ${decoded.userId}`);
     req.user = { userId: decoded.userId, email: decoded.email };
     next();
   } catch (error) {
@@ -33,7 +42,7 @@ module.exports = function (req, res, next) {
       timestamp: new Date().toISOString()
     };
     
-    logger.error('Błąd weryfikacji tokena:', errorDetails);
+    logger.error('Token verification error:', errorDetails);
 
     switch (error.name) {
       case 'TokenExpiredError':

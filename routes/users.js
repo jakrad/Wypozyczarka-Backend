@@ -10,7 +10,7 @@ const logger = require('../utils/logger');
 const multer = require('multer');
 const { uploadImage, deleteImage } = require('../utils/s3'); // Removed s3 from here
 const { s3 } = require('../utils/aws'); // Added s3 from aws
-const { ValidationError } = require('../middleware/errorHandler');
+const { ValidationError, NotFoundError } = require('../middleware/errorHandler');
 
 // Configure multer storage (in memory)
 const storage = multer.memoryStorage();
@@ -37,152 +37,6 @@ const upload = multer({
 
 /**
  * @swagger
- * components:
- *   schemas:
- *     RegisterRequest:
- *       type: object
- *       required:
- *         - email
- *         - password
- *         - name
- *       properties:
- *         email:
- *           type: string
- *           format: email
- *           description: User's email address
- *           example: user@example.com
- *         password:
- *           type: string
- *           description: User's password
- *           example: StrongPassword123
- *         name:
- *           type: string
- *           description: User's full name
- *           example: Jan Kowalski
- *         phoneNumber:
- *           type: string
- *           description: User's phone number
- *           example: "+123456789"
- *         profileImage:
- *           type: string
- *           format: url
- *           nullable: true
- *           description: URL to the user's profile image
- *           example: http://example.com/images/jan.jpg
- *         role:
- *           type: string
- *           description: User's role
- *           example: user
- *     RegisterResponse:
- *       type: object
- *       properties:
- *         message:
- *           type: string
- *           example: Użytkownik zarejestrowany pomyślnie
- *         userId:
- *           type: integer
- *           example: 1
- *     LoginRequest:
- *       type: object
- *       required:
- *         - email
- *         - password
- *       properties:
- *         email:
- *           type: string
- *           format: email
- *           description: User's email address
- *           example: user@example.com
- *         password:
- *           type: string
- *           description: User's password
- *           example: StrongPassword123
- *     LoginResponse:
- *       type: object
- *       properties:
- *         message:
- *           type: string
- *           example: Zalogowano pomyślnie
- *         token:
- *           type: string
- *           description: JWT token for authenticated requests
- *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6...
- *         user:
- *           type: object
- *           properties:
- *             id:
- *               type: integer
- *               example: 1
- *             name:
- *               type: string
- *               example: Jan Kowalski
- *             email:
- *               type: string
- *               format: email
- *               example: jan.kowalski@example.com
- *             profileImage:
- *               type: string
- *               format: url
- *               nullable: true
- *               example: http://example.com/images/jan.jpg
- *             role:
- *               type: string
- *               example: user
- *             phoneNumber:
- *               type: string
- *               example: "+123456789"
- *             createdAt:
- *               type: string
- *               format: date-time
- *               example: "2023-01-01T12:00:00Z"
- *             updatedAt:
- *               type: string
- *               format: date-time
- *               example: "2023-06-01T12:00:00Z"
- *             lastLogin:
- *               type: integer
- *               example: 1682582400000
- *     ErrorResponse:
- *       type: object
- *       properties:
- *         status:
- *           type: string
- *           enum: [error]
- *           example: error
- *         code:
- *           type: string
- *           example: VALIDATION_ERROR
- *         message:
- *           type: string
- *           example: Błąd serwera
- *         timestamp:
- *           type: string
- *           format: date-time
- *           example: "2024-04-27T10:20:30Z"
- *         path:
- *           type: string
- *           example: "/users/login"
- *         method:
- *           type: string
- *           example: "POST"
- *         ip:
- *           type: string
- *           example: "192.168.1.1"
- *         userId:
- *           type: integer
- *           example: 123
- *           nullable: true
- *         stack:
- *           type: string
- *           description: Error stack trace
- *           example: "Error: Something went wrong...\n    at ..."
- *           nullable: true
- *
- *
- */
-
-/**
- * @swagger
  * /users/register:
  *   post:
  *     summary: Register a new user
@@ -202,7 +56,7 @@ const upload = multer({
  *             schema:
  *               $ref: '#/components/schemas/RegisterResponse'
  *       400:
- *         description: Bad Request - Email already exists
+ *         description: Bad Request - Email already exists or validation error
  *         content:
  *           application/json:
  *             schema:
@@ -461,7 +315,7 @@ router.post('/me/profile-image', auth, upload.single('profileImage'), async (req
     res.json({ message: 'Profile image updated successfully', imageUrl });
   } catch (error) {
     logger.error('Error uploading profile image:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Błąd serwera' });
   }
 });
 
@@ -524,7 +378,7 @@ router.delete('/me/profile-image', auth, async (req, res) => {
     res.json({ message: 'Profile image deleted successfully' });
   } catch (error) {
     logger.error('Error deleting profile image:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Błąd serwera' });
   }
 });
 
@@ -567,6 +421,12 @@ router.delete('/me/profile-image', auth, async (req, res) => {
  *                   $ref: '#/components/schemas/User'
  *       404:
  *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       400:
+ *         description: Bad Request - Validation error
  *         content:
  *           application/json:
  *             schema:
@@ -660,6 +520,12 @@ router.put('/me', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         description: Unauthorized - Incorrect current password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: User not found
  *         content:
  *           application/json:
  *             schema:
@@ -767,6 +633,12 @@ router.put('/me/change-email', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         description: Unauthorized - Incorrect current password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: User not found
  *         content:
  *           application/json:
  *             schema:
