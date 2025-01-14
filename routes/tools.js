@@ -706,10 +706,6 @@ router.post('/:toolId/images', auth, upload.array('images', 3), async (req, res)
       return res.status(400).json({ message: 'No images provided' });
     }
 
-    req.files.forEach((file, idx) => {
-      logger.info(`Processing File[${idx}]: originalname=${file.originalname}, mimetype=${file.mimetype}, size=${file.size} bytes`);
-    });
-
     const tool = await Tool.findByPk(toolId);
     if (!tool) {
       logger.warn(`Tool not found: toolID = ${toolId}`);
@@ -742,6 +738,94 @@ router.post('/:toolId/images', auth, upload.array('images', 3), async (req, res)
     res.status(200).json(results);
   } catch (error) {
     logger.error('Błąd podczas uploadu obrazów:', error);
+    res.status(500).json({ message: 'Błąd serwera' });
+  }
+});
+
+/**
+ * @swagger
+ * /tools/{toolId}/images/{imageId}:
+ *   delete:
+ *     summary: Delete a single image from a tool
+ *     tags: [Tools]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: toolId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the tool
+ *       - in: path
+ *         name: imageId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the image to delete
+ *     responses:
+ *       200:
+ *         description: Image deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Obraz usunięty pomyślnie
+ *       403:
+ *         description: Forbidden - No permission to delete this image
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Tool or image not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server Error
+ */
+router.delete('/:toolId/images/:imageId', auth, async (req, res) => {
+  const toolId = parseInt(req.params.toolId, 10);
+  const imageId = parseInt(req.params.imageId, 10);
+  const userId = req.user.userId;
+
+  logger.info(`Deleting image ID=${imageId} for toolID=${toolId} by userID=${userId}`);
+
+  try {
+    const tool = await Tool.findByPk(toolId);
+    if (!tool) {
+      logger.warn(`Tool not found: toolID = ${toolId}`);
+      return res.status(404).json({ message: 'Narzędzie nie znalezione' });
+    }
+
+    if (tool.userId !== userId) {
+      logger.warn(`UserID=${userId} has no permission to delete images for toolID=${toolId}`);
+      return res.status(403).json({ message: 'Brak uprawnień do usunięcia tego obrazu' });
+    }
+
+    const toolImage = await ToolImage.findOne({
+      where: { id: imageId, toolId },
+    });
+    if (!toolImage) {
+      logger.warn(`ToolImage not found: imageID=${imageId}, toolID=${toolId}`);
+      return res.status(404).json({ message: 'Obraz nie znaleziony' });
+    }
+
+    // Delete from S3
+    await deleteImage(toolImage.imageUrl);
+
+    // Remove DB record
+    await toolImage.destroy();
+
+    logger.info(`Image deleted successfully: imageID=${imageId}, from toolID=${toolId}`);
+    res.status(200).json({ message: 'Obraz usunięty pomyślnie' });
+  } catch (error) {
+    logger.error('Błąd podczas usuwania obrazu:', error);
     res.status(500).json({ message: 'Błąd serwera' });
   }
 });
