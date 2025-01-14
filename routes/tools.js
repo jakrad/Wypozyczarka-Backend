@@ -677,7 +677,7 @@ router.get('/user/:userId', async (req, res) => {
  *               items:
  *                 $ref: '#/components/schemas/ToolImage'
  *       400:
- *         description: Bad Request - Tool not found or no images provided
+ *         description: Bad Request - Tool not found, no images provided, or too many images
  *         content:
  *           application/json:
  *             schema:
@@ -712,9 +712,27 @@ router.post('/:toolId/images', auth, upload.array('images', 3), async (req, res)
       return res.status(400).json({ message: 'Tool does not exist' });
     }
 
+    // Check ownership
     if (tool.userId !== userId) {
       logger.warn(`UserID = ${userId} does not own toolID = ${toolId}`);
       return res.status(403).json({ message: 'No permission to add images to this tool' });
+    }
+
+    // Count how many images are already in DB for this tool
+    const existingCount = await ToolImage.count({ where: { toolId } });
+    // total that would exist
+    const totalImagesAfter = existingCount + req.files.length;
+
+    // If adding these new images would exceed the limit (3), reject.
+    if (totalImagesAfter > 3) {
+      logger.warn(
+        `Cannot upload. ToolID=${toolId} already has ${existingCount} images; ` +
+        `attempting to add ${req.files.length} would exceed limit of 3.`
+      );
+      return res.status(400).json({
+        message: `Nie można dodać więcej niż 3 zdjęcia. Masz już ${existingCount}, ` +
+                 `próbujesz dodać ${req.files.length}. Maksymalnie 3 łącznie.`
+      });
     }
 
     const results = [];
