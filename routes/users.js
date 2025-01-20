@@ -816,41 +816,39 @@ router.get('/:id', auth, async (req, res) => {
 /**
 8
 **/
-const express = require("express");
-const router = express.Router();
-const User = require("../models/User"); // Import modelu User
-
-// Endpoint do aktualizacji imienia użytkownika
-router.put("/update-name", async (req, res) => {
-  const { id, name } = req.body; // Pobranie ID i nowego imienia z żądania
-
-  // Walidacja danych wejściowych
-  if (!id || !name) {
-    return res.status(400).json({ message: "ID and name are required." });
-  }
+// Endpoint do zmiany imienia i nazwiska
+router.put('/me/change-name', auth, async (req, res) => {
+  const userId = req.user.userId; // Pobierz ID zalogowanego użytkownika z middleware
+  const { newName, newSurname } = req.body;
 
   try {
-    // Znajdź użytkownika na podstawie ID
-    const user = await User.findByPk(id);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found." });
+    // Walidacja danych wejściowych
+    if (!newName || !newSurname) {
+      throw new ValidationError("Nowe imię i nazwisko są wymagane.");
     }
 
-    // Zaktualizuj imię
-    user.name = name;
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: "Użytkownik nie znaleziony." });
+    }
 
-    // Zapisz zmiany w bazie danych
+    // Zaktualizuj imię i nazwisko
+    user.name = newName;
+    user.surname = newSurname; // Załóżmy, że w modelu masz pole `surname`
     await user.save();
 
-    // Wyślij odpowiedź
-    res.status(200).json({ message: "Name updated successfully", user });
+    res.json({ 
+      message: "Imię i nazwisko zaktualizowane pomyślnie.", 
+      updatedUser: { name: user.name, surname: user.surname } 
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Internal server error", error });
+    if (error instanceof ValidationError) {
+      res.status(400).json({ message: error.message });
+    } else {
+      console.error(error);
+      res.status(500).json({ message: "Błąd serwera." });
+    }
   }
 });
-
-module.exports = router;
 
 module.exports = router;
