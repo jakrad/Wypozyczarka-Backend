@@ -813,42 +813,5 @@ router.get('/:id', auth, async (req, res) => {
     });
   }
 });
-/**
-8
-**/
-// Endpoint do zmiany imienia i nazwiska
-router.put('/me/change-name', auth, async (req, res) => {
-  const userId = req.user.userId; // Pobierz ID zalogowanego użytkownika z middleware
-  const { newName, newSurname } = req.body;
-
-  try {
-    // Walidacja danych wejściowych
-    if (!newName || !newSurname) {
-      throw new ValidationError("Nowe imię i nazwisko są wymagane.");
-    }
-
-    const user = await User.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({ message: "Użytkownik nie znaleziony." });
-    }
-
-    // Zaktualizuj imię i nazwisko
-    user.name = newName;
-    user.surname = newSurname; // Załóżmy, że w modelu masz pole `surname`
-    await user.save();
-
-    res.json({ 
-      message: "Imię i nazwisko zaktualizowane pomyślnie.", 
-      updatedUser: { name: user.name, surname: user.surname } 
-    });
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      res.status(400).json({ message: error.message });
-    } else {
-      console.error(error);
-      res.status(500).json({ message: "Błąd serwera." });
-    }
-  }
-});
 
 module.exports = router;
