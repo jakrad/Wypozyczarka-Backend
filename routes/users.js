@@ -813,5 +813,44 @@ router.get('/:id', auth, async (req, res) => {
     });
   }
 });
+/**
+8
+**/
+const express = require("express");
+const router = express.Router();
+const User = require("../models/User"); // Import modelu User
+
+// Endpoint do aktualizacji imienia użytkownika
+router.put("/update-name", async (req, res) => {
+  const { id, name } = req.body; // Pobranie ID i nowego imienia z żądania
+
+  // Walidacja danych wejściowych
+  if (!id || !name) {
+    return res.status(400).json({ message: "ID and name are required." });
+  }
+
+  try {
+    // Znajdź użytkownika na podstawie ID
+    const user = await User.findByPk(id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // Zaktualizuj imię
+    user.name = name;
+
+    // Zapisz zmiany w bazie danych
+    await user.save();
+
+    // Wyślij odpowiedź
+    res.status(200).json({ message: "Name updated successfully", user });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error", error });
+  }
+});
+
+module.exports = router;
 
 module.exports = router;
