@@ -2,7 +2,7 @@
 
 # Wypozyczarka Backend
 
-Backend for Wypozyczarka application, written using Node.js
+Backend for Wypozyczarka application (https://github.com/Patryk-Rothkegel/Wypozyczarka), written using Node.js
 
 ## Description
 
