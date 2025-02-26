@@ -1,25 +1,25 @@
 {
   "development": {
     "username": "admin",                
-    "password": "lash-exuberant-drainage-zen-wagon-barrier", 
+    "password": "aws", 
     "database": "wypozyczarka_db",      
-    "host": "db-wypozyczarka.cpeoq4q66p4j.eu-north-1.rds.amazonaws.com", 
+    "host": "dbhostdomain-aws.com", 
     "port": 3306,                       
     "dialect": "mysql"
   },
   "test": {
     "username": "admin",
-    "password": "lash-exuberant-drainage-zen-wagon-barrier",
+    "password": "aws",
     "database": "wypozyczarka_db_test",
-    "host": "db-wypozyczarka.cpeoq4q66p4j.eu-north-1.rds.amazonaws.com",
+    "host": "dbhostdomain-aws.com",
     "port": 3306,
     "dialect": "mysql"
   },
   "production": {
     "username": "admin",
-    "password": "lash-exuberant-drainage-zen-wagon-barrier",
+    "password": "pass",
     "database": "wypozyczarka_db_prod",
-    "host": "db-wypozyczarka.cpeoq4q66p4j.eu-north-1.rds.amazonaws.com",
+    "host": "dbhostdomain-aws.com",
     "port": 3306,
     "dialect": "mysql"
   }
